@@ -1,0 +1,4 @@
+repo_id: yourepoidhere
+registry: registry.quobyte.local
+mountpoint: /quobyte
+mddisksize: 1.2

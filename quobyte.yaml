@@ -1,0 +1,245 @@
+---
+- hosts: cluster
+  vars_files:
+    - vars/quobyte.yaml
+  tasks:
+    - name: Download Quobyte Software for id {{ repo_id }}
+      get_url:
+        url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
+        dest: /root/install_quobyte
+        mode: '0755'
+    - name: Ensure java is installed
+      package:
+        name: java-1.8.0-openjdk
+        state: present
+    - name: Ensure chrony is installed
+      package:
+        name: chrony
+        state: present
+    - name: Ensure tuned is installed
+      package:
+        name: tuned
+        state: present
+    - name: Ensure ntp is removed
+      package:
+        name: ntp
+        state: absent
+    - name: Ensure ntpdate is removed
+      package:
+        name: ntpdate
+        state: absent
+    - name: Disable SE Linux
+      shell:
+        cmd: /usr/sbin/setenforce 0
+      ignore_errors: yes
+    - name: Ensure SELinux is set to disabled mode
+      lineinfile:
+        path: /etc/selinux/config
+        regexp: '^SELINUX='
+        line: SELINUX=disabled
+      ignore_errors: yes
+    - name: Ensure Apparmor is stopped
+      service:
+        name: apparmor
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+    - name: Remove apparmor
+      package:
+        name: apparmor
+        state: absent
+      ignore_errors: yes
+    - name: Disable swap
+      shell:
+        cmd: swapoff -a
+    - name: Remove swap from fstab
+      lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: '^%swap'
+- hosts: bootstrap
+  vars_files:
+    - vars/quobyte.yaml
+  tasks:
+    - name: Install Quobyte bootstrap
+      shell:
+        cmd: /root/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+    - name: Start and enable Quobyte metadata service
+      service:
+        name: quobyte-metadata
+        state: restarted
+        enabled: yes
+    - name: Start and enable Quobyte data service
+      service:
+        name: quobyte-data
+        state: restarted
+        enabled: yes
+    - name: Start and enable Quobyte api service
+      service:
+        name: quobyte-api
+        state: restarted
+        enabled: yes
+    - name: Start and enable Quobyte webconsole  service
+      service:
+        name: quobyte-webconsole
+        state: restarted
+        enabled: yes
+    - name: Install Quobyte client
+      shell:
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+    - name: Restart quobyte-client
+      service:
+        name: quobyte-client
+        state: restarted
+        enabled: yes
+- hosts: nodes
+  vars_files:
+    - vars/quobyte.yaml
+  tasks:
+    - name: Add node to cluster
+      shell:
+        cmd: /root/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+    - name: Start and enable Quobyte metadata service
+      service:
+        name: quobyte-metadata
+        state: restarted
+        enabled: yes
+    - name: Start and enable Quobyte data service
+      service:
+        name: quobyte-data
+        state: restarted
+        enabled: yes
+    - name: Start and enable Quobyte api service
+      service:
+        name: quobyte-api
+        state: restarted
+        enabled: yes
+    - name: Start and enable Quobyte webconsole  service
+      service:
+        name: quobyte-webconsole
+        state: restarted
+        enabled: yes
+    - name: Install Quobyte client
+      shell:
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+    - name: Restart quobyte-client
+      service:
+        name: quobyte-client
+        state: restarted
+        enabled: yes
+- hosts: diskformat
+  vars_files:
+  - vars/quobyte.yaml
+  tasks:
+    - name: Wait for devices to become availible
+      shell:
+        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk 'NR==1{print $1}'
+      register: list
+      until: list.stdout.find("dev") != -1
+      retries: 300
+      delay: 10
+    - shell: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk 'NR==1{print $3}'
+      register: list2
+    - name: Create metadata disk
+      shell:
+        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk 'NR==1{print $1}'
+      register: metadata
+    - shell: /usr/bin/qmgmt device make {{ item }} M
+      with_items:
+        - "{{ metadata.stdout_lines }}"
+    - shell: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk '{print $3}'
+      register: list3
+    - set_fact: content2="{{ list2.stdout }}"
+    - name: Create data list
+      shell:
+        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ inventory_hostname }}|grep -v {{ content2 }} |awk '{print $1}'
+      register: list5
+    - name: Create data disk(s)
+      shell:
+        cmd: /usr/bin/qmgmt device make {{ item }} D
+      with_items:
+        - "{{ list5.stdout_lines }}"
+    - name: Wait for scheduled tasks to be in a "running" state
+      shell: 
+        cmd: /usr/bin/qmgmt task list
+      register: list6
+      until: list6.stdout.find("SCHEDULED") == -1
+      retries: 300
+    - name: Wait for running tasks to be in a "finished" state
+      shell: 
+        cmd: /usr/bin/qmgmt task list
+      register: list7
+      until: list7.stdout.find("RUNNING") == -1
+      retries: 300
+- hosts: diskformat,!nodes
+  vars_files:
+  - vars/quobyte.yaml
+  tasks:
+    - name: Copy default volume configuration
+      copy:
+         src: templates/Default-replicated.conf
+         dest: /tmp/
+    - name: Import volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated.conf
+    - name: Create default volumes
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0 root root Default-replicated
+- hosts: clients
+  vars_files:
+    - vars/quobyte.yaml
+  tasks:
+    - name: Download Quobyte Software for id {{ repo_id }}
+      get_url:
+        url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
+        dest: /root/install_quobyte
+        mode: '0755'
+    - name: Install Quobyte client
+      shell:
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+    - name: Ensure java is installed
+      package:
+        name: java-1.8.0-openjdk
+        state: present
+    - name: Ensure chrony is installed
+      package:
+        name: chrony
+        state: present
+    - name: Ensure tuned is installed
+      package:
+        name: tuned
+        state: present
+    - name: Ensure ntp is removed
+      package:
+        name: ntp
+        state: absent
+    - name: Ensure ntpdate is removed
+      package:
+        name: ntpdate
+        state: absent
+    - name: Disable SE Linux
+      shell:
+        cmd: /usr/sbin/setenforce 0
+      ignore_errors: yes
+    - name: Ensure SELinux is set to disabled mode
+      lineinfile:
+        path: /etc/selinux/config
+        regexp: '^SELINUX='
+        line: SELINUX=disabled
+      ignore_errors: yes
+    - name: Configure quobyte client configuration
+      blockinfile:
+        path: /etc/quobyte/client-service.cfg
+        block: |
+          registry={{ registry }}
+          mount_point={{ mountpoint }}
+          options=default_permissions
+          disable-xattrs
+    - name: Set quobyte-client tuned profile
+      shell:
+        cmd: /usr/sbin/tuned-adm profile quobyte-client-performance
+    - name: Restart quobyte-client
+      service:
+        name: quobyte-client
+        state: restarted
+        enabled: yes

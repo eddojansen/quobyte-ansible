@@ -1,0 +1,45 @@
+
+This ansible playbook is designed for repo based Quobyte installations on nodes with Internet access. The playbook will install and configure prerequisites beforeinstalling and configuring a Quobyte cluster that can immediately be used to write data to (batteries included).
+
+
+The Quobyte client will be installed on the storage nodes, additional clients can be installed using the same playbook by populating the client nodes in the [clients] section of the inventory file.
+
+Terminology:
+
+Bootstrap
+- Has CentOS 7 or Ubuntu 18 up and running
+- Requires an Ansible management node or the first node in the Quobyte cluster to have ansible installed
+- Has root access to all nodes and clients that should be part of the cluster by name
+- Has passwordless key access to all cluster and client nodes
+- The host key for all cluster and client nodes has been accepted (by connecting to each node once)
+
+Cluster Node
+- Has CentOS 7 or Ubuntu 18 up and running
+- A server that fulfills the minimal requirements to become a quobyte node
+- Has a root account configured used to allow management via ansible
+
+Client Node
+- Has CentOS 7 or Ubuntu 18 up and running (Quobyte also support clients for Windows and MAc but support for these are not included in this playbook)
+- A server that fulfills the minimal requirements to become a quobyte client
+- Has a root account configured used to allow management via ansible
+
+Preparation:
+
+1) Edit the inventory file
+ a) In section [cluster] put all Cluster Nodes by name (one per line)
+ b) In section [bootstrap] put one Cluster Node by name
+ c) In section [nodes] put all Cluster Nodes except the one you selected to be the bootstrap node 
+ d) In section [diskformat] put in all Cluster Nodes if you want the playbook to automaticly create a default volume (batteries included) (requires mddisksize)
+ d) In section [clients] put all Client Nodes by name (one per line) (Cluster nodes already have the client installed)
+
+2) Edit vars/quobyte.yaml
+   Set the variables to a meaningful value for your environment
+     repository: The Quobyte repo id that you have received after signing up on www.quobyte.com
+     registry: The DNS A record for service discovery (example: registry.quobyte.local)
+     mddisksize: The size of the flash device used for metadata on each node 64 (output size from lsblk) (only required when using [diskformat])
+     mountpoint: Mountpoint name for the Quobyte client (example: /quobyte)
+
+3) Start the installation
+   Within the quobyte-rpm-ansible directory run the following command on the Ansible management node or the Bootstrap node of the Quobyte cluster
+   ansible-playbook -b -i inventory quobyte.yaml
+ 
