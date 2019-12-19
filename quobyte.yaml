@@ -8,10 +8,16 @@
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
         dest: /root/install_quobyte
         mode: '0755'
-    - name: Ensure java is installed
-      package:
+    - name: Ensure java is installed on Centos
+      yum:
         name: java-1.8.0-openjdk
         state: present
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+    - name: Ensure java is installed on Ubuntu
+      apt:
+        name: openjdk-8-jre-headless
+        state: present
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Ensure chrony is installed
       package:
         name: chrony
@@ -32,22 +38,26 @@
       shell:
         cmd: /usr/sbin/setenforce 0
       ignore_errors: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure SELinux is set to disabled mode
       lineinfile:
         path: /etc/selinux/config
         regexp: '^SELINUX='
         line: SELINUX=disabled
       ignore_errors: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure Apparmor is stopped
       service:
         name: apparmor
         state: stopped
         enabled: no
       ignore_errors: yes
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Remove apparmor
       package:
         name: apparmor
         state: absent
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
       ignore_errors: yes
     - name: Disable swap
       shell:
@@ -122,7 +132,7 @@
     - name: Install Quobyte client
       shell:
         cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
-    - name: Restart quobyte-client
+    - name: Start quobyte-client
       service:
         name: quobyte-client
         state: restarted
@@ -131,46 +141,50 @@
   vars_files:
   - vars/quobyte.yaml
   tasks:
-    - name: Wait for devices to become availible
+    - name: Select the first device for each node based on the mddisksize
       shell:
-        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk 'NR==1{print $1}'
-      register: list
-      until: list.stdout.find("dev") != -1
-      retries: 300
-      delay: 10
-    - shell: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk 'NR==1{print $3}'
-      register: list2
+        cmd: lsblk -dp -o NAME,SIZE |grep {{ mddisksize }} |awk 'NR==1{print $1}'
+      register: list0
+    - set_fact: flist0="{{ list0.stdout }}"
+    - name: Wait for devices to become available
+      shell:
+        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ inventory_hostname }}|grep {{ flist0 }}
+      register: list1
+      until: list1.stdout.find("dev") != -1
+      retries: 50
+    - debug: var=list1.stdout_lines
+    - pause: seconds=30
     - name: Create metadata disk
       shell:
-        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk 'NR==1{print $1}'
+        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ flist0 }}|grep {{ inventory_hostname }}|awk 'NR==1{print $1}'
       register: metadata
     - shell: /usr/bin/qmgmt device make {{ item }} M
       with_items:
         - "{{ metadata.stdout_lines }}"
-    - shell: /usr/bin/qmgmt device list-unformatted|grep {{ mddisksize }}|grep {{ inventory_hostname }}|awk '{print $3}'
-      register: list3
-    - set_fact: content2="{{ list2.stdout }}"
+    - debug: var=metadata.stdout_lines          
     - name: Create data list
       shell:
-        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ inventory_hostname }}|grep -v {{ content2 }} |awk '{print $1}'
-      register: list5
+        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ inventory_hostname }}|grep -v {{ flist0 }} |awk '{print $1}'
+      register: list2
+    - debug: var=list2.stdout_lines      
     - name: Create data disk(s)
       shell:
         cmd: /usr/bin/qmgmt device make {{ item }} D
       with_items:
-        - "{{ list5.stdout_lines }}"
-    - name: Wait for scheduled tasks to be in a "running" state
+        - "{{ list2.stdout_lines }}"
+    - name: Wait for all devices have "started" the format procedure
       shell: 
         cmd: /usr/bin/qmgmt task list
-      register: list6
-      until: list6.stdout.find("SCHEDULED") == -1
+      register: list3
+      until: list3.stdout.find("SCHEDULED") == -1
       retries: 300
-    - name: Wait for running tasks to be in a "finished" state
+    - name: Wait for all devices to have "finished" the format procedure
       shell: 
         cmd: /usr/bin/qmgmt task list
-      register: list7
-      until: list7.stdout.find("RUNNING") == -1
+      register: list4
+      until: list4.stdout.find("RUNNING") == -1
       retries: 300
+    - pause: seconds=30
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml
@@ -182,7 +196,7 @@
     - name: Import volume configuration
       shell:
         cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated.conf
-    - name: Create default volumes
+    - name: Create default volume
       shell:
         cmd: /usr/bin/qmgmt volume create vol0 root root Default-replicated
 - hosts: clients

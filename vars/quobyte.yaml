@@ -1,4 +1,4 @@
-repo_id: yourepoidhere
+repo_id: yourrepoidhere
 registry: registry.quobyte.local
 mountpoint: /quobyte
-mddisksize: 1.2
+mddisksize: 1.2T

@@ -1,22 +1,19 @@
 [bootstrap]
-quobyte-node1
+ubuntu-q1
 
 [nodes]
-quobyte-node2
-quobyte-node3
-quobyte-node4
+ubuntu-q2
+ubuntu-q3
 
 [cluster]
-quobyte-node1
-quobyte-node2
-quobyte-node3
-quobyte-node4
+ubuntu-q1
+ubuntu-q2
+ubuntu-q3
 
 [diskformat]
-quobyte-node1
-quobyte-node2
-quobyte-node3
-quobyte-node4
+ubuntu-q1
+ubuntu-q2
+ubuntu-q3
 
 [clients]
 #mdtest-node1
