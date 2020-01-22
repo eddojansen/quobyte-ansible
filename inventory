@@ -1,19 +1,22 @@
 [bootstrap]
-ubuntu-q1
+qnode1
 
 [nodes]
-ubuntu-q2
-ubuntu-q3
+qnode2
+qnode3
+qnode4
 
 [cluster]
-ubuntu-q1
-ubuntu-q2
-ubuntu-q3
+qnode1
+qnode2
+qnode3
+qnode4
 
 [diskformat]
-ubuntu-q1
-ubuntu-q2
-ubuntu-q3
+qnode1
+qnode2
+qnode3
+qnode4
 
 [clients]
 #mdtest-node1

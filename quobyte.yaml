@@ -143,7 +143,7 @@
   tasks:
     - name: Select the first device for each node based on the mddisksize
       shell:
-        cmd: lsblk -dp -o NAME,SIZE |grep {{ mddisksize }} |awk 'NR==1{print $1}'
+        cmd: lsblk -dsp -o NAME,SIZE |grep {{ mddisksize }} |awk 'NR==1{print $1}'
       register: list0
     - set_fact: flist0="{{ list0.stdout }}"
     - name: Wait for devices to become available
