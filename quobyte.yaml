@@ -59,14 +59,15 @@
         state: absent
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
       ignore_errors: yes
+    - name: Remove swaps from fstab
+      lineinfile:
+        dest: /etc/fstab
+        regexp: '^/[\S]+\s+swap\s+swap'
+        state: absent
+      notify: disable swap
     - name: Disable swap
       shell:
         cmd: swapoff -a
-    - name: Remove swap from fstab
-      lineinfile:
-        path: /etc/fstab
-        state: absent
-        regexp: '^%swap'
 - hosts: bootstrap
   vars_files:
     - vars/quobyte.yaml
