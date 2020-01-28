@@ -37,8 +37,6 @@
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
-      register: command_result
-      failed_when: "'ERROR' in command_result.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure SELinux is set to disabled mode
@@ -46,8 +44,6 @@
         path: /etc/selinux/config
         regexp: '^SELINUX='
         line: SELINUX=disabled
-      register: command_result
-      failed_when: "'ERROR' in command_result.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure Apparmor is stopped
@@ -63,15 +59,14 @@
         state: absent
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
       ignore_errors: yes
-    - name: Remove swaps from fstab
-      lineinfile:
-        dest: /etc/fstab
-        regexp: '^/[\S]+\s+swap\s+swap'
-        state: absent
-      notify: disable swap
     - name: Disable swap
       shell:
         cmd: swapoff -a
+    - name: Remove swap from fstab
+      lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: '^%swap'
 - hosts: bootstrap
   vars_files:
     - vars/quobyte.yaml
@@ -97,10 +92,9 @@
   - vars/quobyte.yaml
   tasks:
     - name: Create a list of all devices
-      shell: 
-        cmd: /usr/bin/lsblk -dn -o NAME,TYPE |grep disk |awk '{print $1}'
+      command: lsblk -dn -o NAME
       register: list_all
-    - set_fact: flist_all="{{ list_all.stdout_lines }}"
+    - set_fact: flist_all="{{ list_all.stdout }}"
     - name: Create a list of non empty devices
       shell:
         cmd: blkid |awk '{print $1}'|sed 's/://'|sed 's/[0-9]\+$//'|uniq
@@ -124,60 +118,70 @@
       delay: 5
       retries: 1000
       with_items: "{{ _create_filesystems.results }}"
+#    - name: Set Quobyte label on new devices
+#      shell: e2label /dev/{{ item }} quobyte-dev
+#      with_items:
+#        - "{{ flist_empty }}"
+#      register: _create_label
+#      async: 1200
+#      poll: 0
+#    - debug: var=flist_empty
+#    - name: Wait for creation to finish
+#      async_status:
+#        jid: "{{ item.ansible_job_id }}"
+#      register: _job2
+#      until: _job2.finished
+#      delay: 5
+#      retries: 1000
+#      with_items: "{{ _create_label.results }}"
     - name: Create mount directories
-      shell: mkdir -p /var/lib/quobyte/mnt/inspector-{{ item }}
+      shell: mkdir /var/lib/quobyte/mnt/inspector-{{ item }}
       with_items:
         - "{{ flist_empty }}"
-      register: _create_directories
+      register: _create_dirs
       async: 1200
-      poll: 1
+      poll: 0
+    - debug: var=flist_empty
     - name: Wait for creation to finish
       async_status:
         jid: "{{ item.ansible_job_id }}"
-      register: _jobs1
-      until: _jobs1.finished
+      register: _job3
+      until: _job3.finished
       delay: 5
       retries: 1000
-      with_items: "{{ _create_directories.results }}"
-    - name: Check number of devices
-      shell:
-        cmd: lsblk -o name,label,size |grep -c quobyte-dev 
-      register: number_devices
-    - name: Wait for devices to be mounted
-      shell:
-        cmd: mount -l |grep -c quobyte-dev
-      register: mount_number
-      until: mount_number.stdout == number_devices.stdout
+      with_items: "{{ _create_dirs.results }}"
     - name: Select the Metadata disk based on mddisksize
       shell:
-        cmd: lsblk -o name,label,size |grep quobyte-dev |grep {{ mddisksize }} |awk 'NR==1{print $1}'
+        cmd: grep {{ flist_empty }} |grep {{ mddisksize }} |awk 'NR==1{print $1}'
       register: list_m
-    - set_fact: flist_m="{{ list_m.stdout_lines }}"
-    - debug: var=list_m.stdout_lines
-    - name: Create metadata disk
-      shell: qmkdev -t M /var/lib/quobyte/mnt/inspector-{{ item }}
+    - set_fact: flist_m="{{ list_m.stdout }}"
+    - debug: var=flist_m.stdout_lines
+    - pause: seconds=30
+    - name: Create Quobyte Metadata devices
+      shell: /usr/bin/qmkdev -t M /var/lib/quobyte/mnt/inspector-{{ item }}
       with_items:
         - "{{ flist_m }}"
+    - debug: var=flist_m.stdout_lines
     - set_fact:
-        flist_d: "{{ flist_empty | difference (flist_m) }}"
-    - debug: var=flist_d
+        flist_data: "{{ flist_empty | difference (list_m) }}"          
+    - debug: var=flist_data
     - name: Create Quobyte Data devices
-      shell: qmkdev -t D /var/lib/quobyte/mnt/inspector-{{ item }}
+      shell: /usr/bin/qmkdev -t D /var/lib/quobyte/mnt/inspector-{{ item }}
       with_items:
-        - "{{ flist_d }}"
+        - "{{ flist_data }}"
       register: _create_data_devices
       async: 1200
       poll: 0
-    - debug: var=flist_d
+    - debug: var=flist_empty
     - name: Wait for creation to finish
       async_status:
         jid: "{{ item.ansible_job_id }}"
-      register: _jobs3
-      until: _jobs3.finished
+      register: _job4
+      until: _job4.finished
       delay: 5
       retries: 1000
       with_items: "{{ _create_data_devices.results }}"
-    - pause: seconds=3
+    - pause: seconds=30
 - hosts: cluster
   tasks:
     - name: Start and enable Quobyte metadata service
