@@ -1,4 +1,4 @@
 repo_id: yourrepoidhere
-registry: registry.quobyte.local
+registry: registry: 172.16.78.211:7861,172.16.78.212:7861,172.16.78.213:7861,172.16.78.214:7861
 mountpoint: /quobyte
 mddisksize: 1.8T

@@ -8,32 +8,32 @@
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
         dest: /root/install_quobyte
         mode: '0755'
-    - name: Ensure java is installed on Centos
-      yum:
-        name: java-1.8.0-openjdk
-        state: present
+  - name: Install packages Centos
+    yum:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - java-1.8.0-openjdk
+      - chrony
+      - atop
+      - htop
+      - git
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
-    - name: Ensure java is installed on Ubuntu
-      apt:
-        name: openjdk-8-jre-headless
-        state: present
+  - name: Install packages Ubuntu
+    yum:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - openjdk-8-jre-headless
+      - chrony
+      - atop
+      - htop
+      - git
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
-    - name: Ensure chrony is installed
-      package:
-        name: chrony
-        state: present
-    - name: Ensure tuned is installed
-      package:
-        name: tuned
-        state: present
-    - name: Ensure ntp is removed
-      package:
-        name: ntp
-        state: absent
-    - name: Ensure ntpdate is removed
-      package:
-        name: ntpdate
-        state: absent
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
@@ -47,7 +47,7 @@
         regexp: '^SELINUX='
         line: SELINUX=disabled
       register: command_result
-      failed_when: "'ERROR' in command_result.stderr"
+      failed_when: "'FAILED' in command_result.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure Apparmor is stopped
