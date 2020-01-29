@@ -8,32 +8,32 @@
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
         dest: /root/install_quobyte
         mode: '0755'
-  - name: Install packages Centos
-    yum:
-      name: "{{ packages }}"
-      state: present
-      update_cache: yes
-    vars:
-      packages:
-      - java-1.8.0-openjdk
-      - chrony
-      - atop
-      - htop
-      - git
-      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
-  - name: Install packages Ubuntu
-    yum:
-      name: "{{ packages }}"
-      state: present
-      update_cache: yes
-    vars:
-      packages:
-      - openjdk-8-jre-headless
-      - chrony
-      - atop
-      - htop
-      - git
-      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+    - name: Install packages Centos
+      yum:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+        - java-1.8.0-openjdk
+        - chrony
+        - atop
+        - htop
+        - git
+        when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+#    - name: Install packages Ubuntu
+#      yum:
+#        name: "{{ packages }}"
+#        state: present
+#        update_cache: yes
+#      vars:
+#        packages:
+#        - openjdk-8-jre-headless
+#        - chrony
+#        - atop
+#        - htop
+#        - git
+#        when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
