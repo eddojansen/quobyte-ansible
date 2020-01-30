@@ -8,35 +8,36 @@
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
         dest: /root/install_quobyte
         mode: '0755'
-    - name: Ensure java is installed on Centos
+    - name: Install packages Centos
       yum:
-        name: java-1.8.0-openjdk
+        name: "{{ packages }}"
         state: present
+        update_cache: yes
+      vars:
+        packages:
+        - java-1.8.0-openjdk
+        - chrony
+        - atop
+        - htop
+        - git
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
-    - name: Ensure java is installed on Ubuntu
+    - name: Install packages Ubuntu
       apt:
-        name: openjdk-8-jre-headless
+        name: "{{ packages }}"
         state: present
+      vars:
+        packages:
+        - openjdk-8-jre-headless
+        - chrony
+        - atop
+        - htop
+        - git
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
-    - name: Ensure chrony is installed
-      package:
-        name: chrony
-        state: present
-    - name: Ensure tuned is installed
-      package:
-        name: tuned
-        state: present
-    - name: Ensure ntp is removed
-      package:
-        name: ntp
-        state: absent
-    - name: Ensure ntpdate is removed
-      package:
-        name: ntpdate
-        state: absent
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure SELinux is set to disabled mode
@@ -44,6 +45,8 @@
         path: /etc/selinux/config
         regexp: '^SELINUX='
         line: SELINUX=disabled
+      register: command_result2
+      failed_when: "'FAILED' in command_result2.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure Apparmor is stopped
@@ -75,34 +78,9 @@
     - name: Install Quobyte bootstrap
       shell:
         cmd: /root/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
-    - name: Start and enable Quobyte metadata service
-      service:
-        name: quobyte-metadata
-        state: restarted
-        enabled: yes
-    - name: Start and enable Quobyte data service
-      service:
-        name: quobyte-data
-        state: restarted
-        enabled: yes
-    - name: Start and enable Quobyte api service
-      service:
-        name: quobyte-api
-        state: restarted
-        enabled: yes
-    - name: Start and enable Quobyte webconsole  service
-      service:
-        name: quobyte-webconsole
-        state: restarted
-        enabled: yes
     - name: Install Quobyte client
       shell:
         cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
-    - name: Restart quobyte-client
-      service:
-        name: quobyte-client
-        state: restarted
-        enabled: yes
 - hosts: nodes
   vars_files:
     - vars/quobyte.yaml
@@ -110,6 +88,114 @@
     - name: Add node to cluster
       shell:
         cmd: /root/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+    - name: Install Quobyte client
+      shell:
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+- hosts: diskformat
+  vars_files:
+  - vars/quobyte.yaml
+  tasks:
+    - name: Create a list of all devices
+      shell: 
+        cmd: /usr/bin/lsblk -dn -o NAME,TYPE |grep disk |awk '{print $1}'
+      register: list_all
+    - set_fact: flist_all="{{ list_all.stdout_lines }}"
+    - name: Create a list of non empty devices
+      shell:
+        cmd: blkid |awk '{print $1}'|sed 's/://'|sed 's/[0-9]\+$//'|uniq
+      register: list_non_empty
+    - set_fact: flist_non_empty="{{ list_non_empty.stdout }}"
+    - set_fact:
+        flist_empty: "{{ list_all.stdout_lines | difference (list_non_empty.stdout) }}"
+    - name: Create filesystem on empty devices
+      shell: mkfs.xfs -L quobyte-dev -isize=1024 /dev/{{ item }}
+      with_items:
+        - "{{ flist_empty }}"
+      register: _create_filesystems
+      async: 1200
+      poll: 0
+    - debug: var=flist_empty
+    - name: Wait for creation to finish
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: _jobs
+      until: _jobs.finished
+      delay: 5
+      retries: 1000
+      with_items: "{{ _create_filesystems.results }}"
+    - name: Create mount directories
+      shell: mkdir -p /var/lib/quobyte/mnt/inspector-{{ item }}
+      with_items:
+        - "{{ flist_empty }}"
+      register: _create_directories
+      async: 1200
+      poll: 0
+    - name: Wait for creation to finish
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: _jobs1
+      until: _jobs1.finished
+      delay: 5
+      retries: 1000
+      with_items: "{{ _create_directories.results }}"
+#    - name: Mount devices
+#      shell: mount /dev/{{ item }} /var/lib/quobyte/mnt/inspector-{{ item }}
+#      with_items:
+#        - "{{ flist_empty }}"
+#      register: _mount_devices
+#      async: 1200
+#      poll: 0
+#    - name: Wait for creation to finish
+#      async_status:
+#        jid: "{{ item.ansible_job_id }}"
+#      register: _jobs2
+#      until: _jobs2.finished
+#      delay: 5
+#      retries: 1000
+#      with_items: "{{ _mount_devices.results }}"
+    - name: Check number of devices
+      shell:
+        cmd: lsblk -o name,label,size |grep -c quobyte-dev 
+      register: number_devices
+    - name: Wait for devices to be mounted
+      shell:
+        cmd: mount -l |grep -c quobyte-dev
+      register: mount_number
+      until: mount_number.stdout == number_devices.stdout
+      delay: 5
+      retries: 1000
+    - name: Select the Metadata disk based on mddisksize
+      shell:
+        cmd: lsblk -o name,label,size |grep quobyte-dev |grep {{ mddisksize }} |awk 'NR==1{print $1}'
+      register: list_m
+    - set_fact: flist_m="{{ list_m.stdout_lines }}"
+    - debug: var=list_m.stdout_lines
+    - name: Create metadata disk
+      shell: qmkdev -t M /var/lib/quobyte/mnt/inspector-{{ item }}
+      with_items:
+        - "{{ flist_m }}"
+    - set_fact:
+        flist_d: "{{ flist_empty | difference (flist_m) }}"
+    - debug: var=flist_d
+    - name: Create Quobyte Data devices
+      shell: qmkdev -t D /var/lib/quobyte/mnt/inspector-{{ item }}
+      with_items:
+        - "{{ flist_d }}"
+      register: _create_data_devices
+      async: 1200
+      poll: 0
+    - debug: var=flist_d
+    - name: Wait for creation to finish
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: _jobs3
+      until: _jobs3.finished
+      delay: 5
+      retries: 1000
+      with_items: "{{ _create_data_devices.results }}"
+    - pause: seconds=3
+- hosts: cluster
+  tasks:
     - name: Start and enable Quobyte metadata service
       service:
         name: quobyte-metadata
@@ -130,62 +216,11 @@
         name: quobyte-webconsole
         state: restarted
         enabled: yes
-    - name: Install Quobyte client
-      shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
     - name: Start quobyte-client
       service:
         name: quobyte-client
         state: restarted
         enabled: yes
-- hosts: diskformat
-  vars_files:
-  - vars/quobyte.yaml
-  tasks:
-    - name: Select the first device for each node based on the mddisksize
-      shell:
-        cmd: lsblk -dsp -o NAME,SIZE |grep {{ mddisksize }} |awk 'NR==1{print $1}'
-      register: list0
-    - set_fact: flist0="{{ list0.stdout }}"
-    - name: Wait for devices to become available
-      shell:
-        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ inventory_hostname }}|grep {{ flist0 }}
-      register: list1
-      until: list1.stdout.find("dev") != -1
-      retries: 50
-    - debug: var=list1.stdout_lines
-    - pause: seconds=30
-    - name: Create metadata disk
-      shell:
-        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ flist0 }}|grep {{ inventory_hostname }}|awk 'NR==1{print $1}'
-      register: metadata
-    - shell: /usr/bin/qmgmt device make {{ item }} M
-      with_items:
-        - "{{ metadata.stdout_lines }}"
-    - debug: var=metadata.stdout_lines          
-    - name: Create data list
-      shell:
-        cmd: /usr/bin/qmgmt device list-unformatted|grep {{ inventory_hostname }}|grep -v {{ flist0 }} |awk '{print $1}'
-      register: list2
-    - debug: var=list2.stdout_lines      
-    - name: Create data disk(s)
-      shell:
-        cmd: /usr/bin/qmgmt device make {{ item }} D
-      with_items:
-        - "{{ list2.stdout_lines }}"
-    - name: Wait for all devices have "started" the format procedure
-      shell: 
-        cmd: /usr/bin/qmgmt task list
-      register: list3
-      until: list3.stdout.find("SCHEDULED") == -1
-      retries: 300
-    - name: Wait for all devices to have "finished" the format procedure
-      shell: 
-        cmd: /usr/bin/qmgmt task list
-      register: list4
-      until: list4.stdout.find("RUNNING") == -1
-      retries: 300
-    - pause: seconds=30
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml

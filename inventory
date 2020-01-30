@@ -1,22 +1,22 @@
 [bootstrap]
-qnode1
+5u84-node1
 
 [nodes]
-qnode2
-qnode3
-qnode4
+5u84-node2
+5u84-node3
+5u84-node4
 
 [cluster]
-qnode1
-qnode2
-qnode3
-qnode4
+5u84-node1
+5u84-node2
+5u84-node3
+5u84-node4
 
 [diskformat]
-qnode1
-qnode2
-qnode3
-qnode4
+5u84-node1
+5u84-node2
+5u84-node3
+5u84-node4
 
 [clients]
 #mdtest-node1
