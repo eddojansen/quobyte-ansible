@@ -71,32 +71,12 @@
     - name: Disable swap
       shell:
         cmd: swapoff -a
-- hosts: bootstrap
-  vars_files:
-    - vars/quobyte.yaml
-  tasks:
-    - name: Install Quobyte bootstrap
-      shell:
-        cmd: /root/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
-    - name: Install Quobyte client
-      shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
-- hosts: nodes
-  vars_files:
-    - vars/quobyte.yaml
-  tasks:
-    - name: Add node to cluster
-      shell:
-        cmd: /root/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
-    - name: Install Quobyte client
-      shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
 - hosts: diskformat
   vars_files:
   - vars/quobyte.yaml
   tasks:
     - name: Create a list of all devices
-      shell: 
+      shell:
         cmd: /usr/bin/lsblk -dn -o NAME,TYPE |grep disk |awk '{print $1}'
       register: list_all
     - set_fact: flist_all="{{ list_all.stdout_lines }}"
@@ -108,26 +88,10 @@
     - set_fact:
         flist_empty: "{{ list_all.stdout_lines | difference (list_non_empty.stdout) }}"
     - name: Create filesystem on empty devices
-      shell: mkfs.xfs -L quobyte-dev -isize=1024 /dev/{{ item }}
+      shell: mkfs.xfs -f -L quobyte-dev -isize=1024 -q /dev/{{ item }}
       with_items:
         - "{{ flist_empty }}"
       register: _create_filesystems
-      async: 1200
-      poll: 0
-    - debug: var=flist_empty
-    - name: Wait for creation to finish
-      async_status:
-        jid: "{{ item.ansible_job_id }}"
-      register: _jobs
-      until: _jobs.finished
-      delay: 5
-      retries: 1000
-      with_items: "{{ _create_filesystems.results }}"
-    - name: Create mount directories
-      shell: mkdir -p /var/lib/quobyte/mnt/inspector-{{ item }}
-      with_items:
-        - "{{ flist_empty }}"
-      register: _create_directories
       async: 1200
       poll: 0
     - name: Wait for creation to finish
@@ -137,33 +101,99 @@
       until: _jobs1.finished
       delay: 5
       retries: 1000
-      with_items: "{{ _create_directories.results }}"
-#    - name: Mount devices
-#      shell: mount /dev/{{ item }} /var/lib/quobyte/mnt/inspector-{{ item }}
-#      with_items:
-#        - "{{ flist_empty }}"
-#      register: _mount_devices
-#      async: 1200
-#      poll: 0
-#    - name: Wait for creation to finish
-#      async_status:
-#        jid: "{{ item.ansible_job_id }}"
-#      register: _jobs2
-#      until: _jobs2.finished
-#      delay: 5
-#      retries: 1000
-#      with_items: "{{ _mount_devices.results }}"
-    - name: Check number of devices
-      shell:
-        cmd: lsblk -o name,label,size |grep -c quobyte-dev 
-      register: number_devices
-    - name: Wait for devices to be mounted
-      shell:
-        cmd: mount -l |grep -c quobyte-dev
-      register: mount_number
-      until: mount_number.stdout == number_devices.stdout
+      with_items: "{{ _create_filesystems.results }}"
+    - name: Create quobyte label list
+      shell: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
+      register: _quobyte_labeled
+    - set_fact: f_quobyte_labeled="{{ _quobyte_labeled.stdout_lines }}"
+    - name: Create mount directories
+      shell: mkdir -p /var/lib/quobyte/mnt/inspector-{{ item }}
+      with_items:
+        - "{{ f_quobyte_labeled }}"
+      register: _create_directories
+      async: 1200
+      poll: 0
+    - name: Wait for creation to finish
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: _jobs3
+      until: _jobs3.finished
       delay: 5
       retries: 1000
+      with_items: "{{ _create_directories.results }}"
+    - pause:
+        seconds: 5
+    - name: Mount devices
+      shell: mount /dev/{{ item }} /var/lib/quobyte/mnt/inspector-{{ item }}
+      with_items:
+        - "{{ f_quobyte_labeled }}"
+      register: _mount_devices
+      async: 1200
+      poll: 0
+    - debug: var=_mount_devices.stdout_lines
+    - name: Wait for mount to finish
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: _jobs4
+      until: _jobs4.finished
+      delay: 5
+      retries: 1000
+      with_items: "{{ _mount_devices.results }}"
+    - name: Check number of devices
+      shell:
+        cmd: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
+      register: _number_devices
+    - name: Check number of mounts
+      shell:
+        cmd: mount -l |grep -c quobyte-dev
+      register: _mount_number
+    - debug: var=_mount_number.stdout
+- hosts: bootstrap
+  vars_files:
+    - vars/quobyte.yaml
+  tasks:
+    - name: Install Quobyte bootstrap
+      shell:
+        cmd: /root/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+    - name: Copy Quobyte memory config
+      copy:
+         src: templates/quobyte
+         dest: /etc/default/
+    - name: Install Quobyte client
+      shell:
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+    - name: Configure quobyte client configuration
+      blockinfile:
+        path: /etc/quobyte/client-service.cfg
+        block: |
+          mount_point={{ mountpoint }}
+          options=default_permissions
+          disable-xattrs
+- hosts: nodes
+  vars_files:
+    - vars/quobyte.yaml
+  tasks:
+    - name: Add node to cluster
+      shell:
+        cmd: /root/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+    - name: Copy Quobyte memory config
+      copy:
+         src: templates/quobyte
+         dest: /etc/default/
+    - name: Install Quobyte client
+      shell:
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+    - name: Configure quobyte client configuration
+      blockinfile:
+        path: /etc/quobyte/client-service.cfg
+        block: |
+          mount_point={{ mountpoint }}
+          options=default_permissions
+          disable-xattrs
+- hosts: diskformat
+  vars_files:
+  - vars/quobyte.yaml
+  tasks:
     - name: Select the Metadata disk based on mddisksize
       shell:
         cmd: lsblk -o name,label,size |grep quobyte-dev |grep {{ mddisksize }} |awk 'NR==1{print $1}'
@@ -193,7 +223,7 @@
       delay: 5
       retries: 1000
       with_items: "{{ _create_data_devices.results }}"
-    - pause: seconds=3
+    - pause: seconds=5
 - hosts: cluster
   tasks:
     - name: Start and enable Quobyte metadata service
@@ -221,6 +251,10 @@
         name: quobyte-client
         state: restarted
         enabled: yes
+    - name: Wait until metadata service is ready
+      wait_for:
+        path: /var/log/quobyte/metadata.log
+        search_regex: "volume initialization complete"
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml
@@ -281,7 +315,6 @@
       blockinfile:
         path: /etc/quobyte/client-service.cfg
         block: |
-          registry={{ registry }}
           mount_point={{ mountpoint }}
           options=default_permissions
           disable-xattrs

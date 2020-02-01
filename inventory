@@ -1,26 +1,26 @@
 [bootstrap]
-5u84-node1
+4U100-node1
 
 [nodes]
-5u84-node2
-5u84-node3
-5u84-node4
+4U100-node2
+4U100-node3
+4U100-node4
 
 [cluster]
-5u84-node1
-5u84-node2
-5u84-node3
-5u84-node4
+4U100-node1
+4U100-node2
+4U100-node3
+4U100-node4
 
 [diskformat]
-5u84-node1
-5u84-node2
-5u84-node3
-5u84-node4
+4U100-node1
+4U100-node2
+4U100-node3
+4U100-node4
 
 [clients]
-#mdtest-node1
-#mdtest-node2
-#mdtest-node3
-#mdtest-node4
+5U84-node1
+5U84-node2
+5U84-node3
+5U84-node4
 
