@@ -167,6 +167,9 @@
         block: |
           options=default_permissions
           disable-xattrs
+    - name: Set Quobyte tuned profile
+      shell:
+        cmd: tuned-adm profile quobyte-server-performance
 - hosts: nodes
   vars_files:
     - vars/quobyte.yaml
@@ -187,6 +190,9 @@
         block: |
           options=default_permissions
           disable-xattrs
+     - name: Set Quobyte tuned profile
+      shell:
+        cmd: tuned-adm profile quobyte-server-performance
 - hosts: diskformat
   vars_files:
   - vars/quobyte.yaml

@@ -1,5 +1,5 @@
-repo_id: yourrepoidhere
+repo_id: 2dc3276fa0Cf532119d046eb9c35ed4c
 registry: 172.16.78.211:7861,172.16.78.212:7861,172.16.78.213:7861,172.16.78.214:7861
 #registry: registry.quobyte.local
 mountpoint: /quobyte
-mddisksize: 745.2G
+mddisksize: 60G
