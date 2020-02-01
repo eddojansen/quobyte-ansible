@@ -130,7 +130,6 @@
       register: _mount_devices
       async: 1200
       poll: 0
-    - debug: var=_mount_devices.stdout_lines
     - name: Wait for mount to finish
       async_status:
         jid: "{{ item.ansible_job_id }}"
