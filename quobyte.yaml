@@ -161,12 +161,11 @@
          dest: /etc/default/
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Configure quobyte client configuration
       blockinfile:
         path: /etc/quobyte/client-service.cfg
         block: |
-          mount_point={{ mountpoint }}
           options=default_permissions
           disable-xattrs
 - hosts: nodes
@@ -182,12 +181,11 @@
          dest: /etc/default/
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Configure quobyte client configuration
       blockinfile:
         path: /etc/quobyte/client-service.cfg
         block: |
-          mount_point={{ mountpoint }}
           options=default_permissions
           disable-xattrs
 - hosts: diskformat
@@ -280,7 +278,7 @@
         mode: '0755'
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Ensure java is installed
       package:
         name: java-1.8.0-openjdk
@@ -315,7 +313,6 @@
       blockinfile:
         path: /etc/quobyte/client-service.cfg
         block: |
-          mount_point={{ mountpoint }}
           options=default_permissions
           disable-xattrs
     - name: Set quobyte-client tuned profile
