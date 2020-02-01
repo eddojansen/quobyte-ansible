@@ -46,7 +46,7 @@
         regexp: '^SELINUX='
         line: SELINUX=disabled
       register: command_result2
-      failed_when: "'FAILED' in command_result2.stderr"
+      failed_when: "'ERROR' in command_result2.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure Apparmor is stopped
@@ -224,6 +224,8 @@
     - pause: seconds=5
 - hosts: cluster
   tasks:
+    - name: Truncate metadata log
+      shell: truncate -s 0 /var/log/quobyte/metadata.log
     - name: Start and enable Quobyte metadata service
       service:
         name: quobyte-metadata
