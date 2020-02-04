@@ -45,8 +45,6 @@
         path: /etc/selinux/config
         regexp: '^SELINUX='
         line: SELINUX=disabled
-      register: command_result2
-      failed_when: "'FAILED' in command_result2.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure Apparmor is stopped
@@ -88,12 +86,13 @@
     - set_fact:
         flist_empty: "{{ list_all.stdout_lines | difference (list_non_empty.stdout) }}"
     - name: Create filesystem on empty devices
-      shell: mkfs.xfs -f -L quobyte-dev -isize=1024 -q /dev/{{ item }}
+      shell: mkfs.xfs -q -f -L quobyte-dev -isize=1024 /dev/{{ item }}
       with_items:
         - "{{ flist_empty }}"
       register: _create_filesystems
       async: 1200
       poll: 0
+      ignore_errors: yes
     - name: Wait for creation to finish
       async_status:
         jid: "{{ item.ansible_job_id }}"
@@ -102,52 +101,15 @@
       delay: 5
       retries: 1000
       with_items: "{{ _create_filesystems.results }}"
+      ignore_errors: yes
     - name: Create quobyte label list
       shell: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
       register: _quobyte_labeled
     - set_fact: f_quobyte_labeled="{{ _quobyte_labeled.stdout_lines }}"
-    - name: Create mount directories
-      shell: mkdir -p /var/lib/quobyte/mnt/inspector-{{ item }}
-      with_items:
-        - "{{ f_quobyte_labeled }}"
-      register: _create_directories
-      async: 1200
-      poll: 0
-    - name: Wait for creation to finish
-      async_status:
-        jid: "{{ item.ansible_job_id }}"
-      register: _jobs3
-      until: _jobs3.finished
-      delay: 5
-      retries: 1000
-      with_items: "{{ _create_directories.results }}"
-    - pause:
-        seconds: 5
-    - name: Mount devices
-      shell: mount /dev/{{ item }} /var/lib/quobyte/mnt/inspector-{{ item }}
-      with_items:
-        - "{{ f_quobyte_labeled }}"
-      register: _mount_devices
-      async: 1200
-      poll: 0
-    - debug: var=_mount_devices.stdout_lines
-    - name: Wait for mount to finish
-      async_status:
-        jid: "{{ item.ansible_job_id }}"
-      register: _jobs4
-      until: _jobs4.finished
-      delay: 5
-      retries: 1000
-      with_items: "{{ _mount_devices.results }}"
     - name: Check number of devices
       shell:
         cmd: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
       register: _number_devices
-    - name: Check number of mounts
-      shell:
-        cmd: mount -l |grep -c quobyte-dev
-      register: _mount_number
-    - debug: var=_mount_number.stdout
 - hosts: bootstrap
   vars_files:
     - vars/quobyte.yaml
@@ -161,14 +123,16 @@
          dest: /etc/default/
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Configure quobyte client configuration
       blockinfile:
         path: /etc/quobyte/client-service.cfg
         block: |
-          mount_point={{ mountpoint }}
           options=default_permissions
           disable-xattrs
+    - name: Set Quobyte tuned server profile
+      shell:
+        cmd: tuned-adm profile quobyte-server-performance
 - hosts: nodes
   vars_files:
     - vars/quobyte.yaml
@@ -182,14 +146,23 @@
          dest: /etc/default/
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
+        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Configure quobyte client configuration
       blockinfile:
         path: /etc/quobyte/client-service.cfg
         block: |
-          mount_point={{ mountpoint }}
           options=default_permissions
           disable-xattrs
+    - name: Set Quobyte tuned server profile
+      shell:
+        cmd: tuned-adm profile quobyte-server-performance
+    - pause:
+        seconds: 10
+    - name: Check number of mounts
+      shell:
+        cmd: mount -l |grep -c quobyte-dev
+      register: _mount_number
+    - debug: var=_mount_number.stdout
 - hosts: diskformat
   vars_files:
   - vars/quobyte.yaml
@@ -223,9 +196,10 @@
       delay: 5
       retries: 1000
       with_items: "{{ _create_data_devices.results }}"
-    - pause: seconds=5
 - hosts: cluster
   tasks:
+    - name: Truncate metadata log
+      shell: truncate -s 0 /var/log/quobyte/metadata.log
     - name: Start and enable Quobyte metadata service
       service:
         name: quobyte-metadata
@@ -261,68 +235,20 @@
   tasks:
     - name: Copy default volume configuration
       copy:
-         src: templates/Default-replicated.conf
+         src: templates/
          dest: /tmp/
-    - name: Import volume configuration
+    - name: Import rf3 volume configuration
       shell:
         cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated.conf
-    - name: Create default volume
+    - name: Import ec volume configuration
       shell:
-        cmd: /usr/bin/qmgmt volume create vol0 root root Default-replicated
-- hosts: clients
-  vars_files:
-    - vars/quobyte.yaml
-  tasks:
-    - name: Download Quobyte Software for id {{ repo_id }}
-      get_url:
-        url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
-        dest: /root/install_quobyte
-        mode: '0755'
-    - name: Install Quobyte client
+        cmd: /usr/bin/qmgmt volume config import EC-2plus1 /tmp/EC-2plus1
+    - name: Import s3 volume configuration
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }}
-    - name: Ensure java is installed
-      package:
-        name: java-1.8.0-openjdk
-        state: present
-    - name: Ensure chrony is installed
-      package:
-        name: chrony
-        state: present
-    - name: Ensure tuned is installed
-      package:
-        name: tuned
-        state: present
-    - name: Ensure ntp is removed
-      package:
-        name: ntp
-        state: absent
-    - name: Ensure ntpdate is removed
-      package:
-        name: ntpdate
-        state: absent
-    - name: Disable SE Linux
+        cmd: /usr/bin/qmgmt volume config import S3-objects /tmp/S3-objects
+    - name: Create default rf3 volume
       shell:
-        cmd: /usr/sbin/setenforce 0
-      ignore_errors: yes
-    - name: Ensure SELinux is set to disabled mode
-      lineinfile:
-        path: /etc/selinux/config
-        regexp: '^SELINUX='
-        line: SELINUX=disabled
-      ignore_errors: yes
-    - name: Configure quobyte client configuration
-      blockinfile:
-        path: /etc/quobyte/client-service.cfg
-        block: |
-          mount_point={{ mountpoint }}
-          options=default_permissions
-          disable-xattrs
-    - name: Set quobyte-client tuned profile
+        cmd: /usr/bin/qmgmt volume create vol0-rf3 root root Default-replicated
+    - name: Create default ec volume
       shell:
-        cmd: /usr/sbin/tuned-adm profile quobyte-client-performance
-    - name: Restart quobyte-client
-      service:
-        name: quobyte-client
-        state: restarted
-        enabled: yes
+        cmd: /usr/bin/qmgmt volume create vol0-ec21 root root EC-2plus1
