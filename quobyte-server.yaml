@@ -198,27 +198,25 @@
       with_items: "{{ _create_data_devices.results }}"
 - hosts: cluster
   tasks:
-    - name: Truncate metadata log
-      shell: truncate -s 0 /var/log/quobyte/metadata.log
     - name: Start and enable Quobyte metadata service
       service:
         name: quobyte-metadata
-        state: restarted
+        state: started
         enabled: yes
     - name: Start and enable Quobyte data service
       service:
         name: quobyte-data
-        state: restarted
+        state: started
         enabled: yes
     - name: Start and enable Quobyte api service
       service:
         name: quobyte-api
-        state: restarted
+        state: started
         enabled: yes
     - name: Start and enable Quobyte webconsole  service
       service:
         name: quobyte-webconsole
-        state: restarted
+        state: started
         enabled: yes
     - name: Start quobyte-client
       service:

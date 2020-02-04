@@ -42,4 +42,4 @@ Preparation:
 
 4) Start the installation
    Within the quobyte-ansible directory run the following command on the Ansible management node or the Bootstrap node of the Quobyte cluster
-   ansible-playbook -b -i inventory quobyte.yaml
+   ansible-playbook -b -i inventory quobyte-server.yaml
