@@ -1,0 +1,57 @@
+configuration_name: "S3-objects"
+base_configuration: "BASE"
+volume_metadata_configuration {
+  replication_factor: 3
+}
+default_config {
+  file_layout {
+    stripe_width: 3
+    replication_factor: 1
+    block_size_bytes: 65536
+    object_size_bytes: 8388608
+    striping_method: BLOCK_LEVEL
+    segment_size_bytes: 4294967296
+    crc_method: CRC_32_ISCSI
+    coding_method: REED_SOLOMON
+    coding_data_blocks: 2
+    coding_parity_blocks: 1
+    persistent_format: V2
+  }
+  placement {
+    forbidden_device_tags {
+      tags: "ssd"
+    }
+  }
+  io_policy {
+    cache_size_in_objects: 3
+  }
+}
+refinement {
+  filter {
+    property: EXPECTED_SIZE_OF_NEW_FILE
+    operator: SMALLER_THAN
+    value: "66560"
+  }
+  statement {
+    file_layout {
+      stripe_width: 1
+      replication_factor: 3
+      block_size_bytes: 4096
+      object_size_bytes: 8388608
+      striping_method: OBJECT_LEVEL
+      segment_size_bytes: 10737418240
+      crc_method: CRC_32_ISCSI
+      persistent_format: V2
+    }
+    placement {
+      required_device_tags {
+        tags: "ssd"
+      }
+    }
+  }
+}
+metadata_cache_configuration {
+  cache_ttl_ms: 120000
+  negative_cache_ttl_ms: 60000
+  enable_write_back_cache: false
+}
