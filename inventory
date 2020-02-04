@@ -1,22 +1,22 @@
 [bootstrap]
-4U100-node1
+quobyte-node1
 
 [nodes]
-4U100-node2
-4U100-node3
-4U100-node4
+quobyte-node2
+quobyte-node3
+quobyte-node4
 
 [cluster]
-4U100-node1
-4U100-node2
-4U100-node3
-4U100-node4
+quobyte-node1
+quobyte-node2
+quobyte-node3
+quobyte-node4
 
 [diskformat]
-4U100-node1
-4U100-node2
-4U100-node3
-4U100-node4
+quobyte-node1
+quobyte-node2
+quobyte-node3
+quobyte-node4
 
 [clients]
 #5U84-node1
