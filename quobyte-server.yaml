@@ -86,12 +86,13 @@
     - set_fact:
         flist_empty: "{{ list_all.stdout_lines | difference (list_non_empty.stdout) }}"
     - name: Create filesystem on empty devices
-      shell: mkfs.xfs -f -L quobyte-dev -isize=1024 -q /dev/{{ item }}
+      shell: mkfs.xfs -q -f -L quobyte-dev -isize=1024 /dev/{{ item }}
       with_items:
         - "{{ flist_empty }}"
       register: _create_filesystems
       async: 1200
       poll: 0
+      ignore_errors: yes
     - name: Wait for creation to finish
       async_status:
         jid: "{{ item.ansible_job_id }}"
@@ -100,6 +101,7 @@
       delay: 5
       retries: 1000
       with_items: "{{ _create_filesystems.results }}"
+      ignore_errors: yes
     - name: Create quobyte label list
       shell: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
       register: _quobyte_labeled
@@ -128,6 +130,9 @@
         block: |
           options=default_permissions
           disable-xattrs
+    - name: Set Quobyte tuned server profile
+      shell:
+        cmd: tuned-adm profile quobyte-server-performance
 - hosts: nodes
   vars_files:
     - vars/quobyte.yaml
@@ -148,6 +153,9 @@
         block: |
           options=default_permissions
           disable-xattrs
+    - name: Set Quobyte tuned server profile
+      shell:
+        cmd: tuned-adm profile quobyte-server-performance
     - pause:
         seconds: 10
     - name: Check number of mounts
@@ -227,67 +235,20 @@
   tasks:
     - name: Copy default volume configuration
       copy:
-         src: templates/Default-replicated.conf
+         src: templates/
          dest: /tmp/
-    - name: Import volume configuration
+    - name: Import rf3 volume configuration
       shell:
         cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated.conf
-    - name: Create default volume
+    - name: Import ec volume configuration
       shell:
-        cmd: /usr/bin/qmgmt volume create vol0 root root Default-replicated
-- hosts: clients
-  vars_files:
-    - vars/quobyte.yaml
-  tasks:
-    - name: Download Quobyte Software for id {{ repo_id }}
-      get_url:
-        url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
-        dest: /root/install_quobyte
-        mode: '0755'
-    - name: Install Quobyte client
+        cmd: /usr/bin/qmgmt volume config import EC-2plus1 /tmp/EC-2plus1
+    - name: Import s3 volume configuration
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
-    - name: Ensure java is installed
-      package:
-        name: java-1.8.0-openjdk
-        state: present
-    - name: Ensure chrony is installed
-      package:
-        name: chrony
-        state: present
-    - name: Ensure tuned is installed
-      package:
-        name: tuned
-        state: present
-    - name: Ensure ntp is removed
-      package:
-        name: ntp
-        state: absent
-    - name: Ensure ntpdate is removed
-      package:
-        name: ntpdate
-        state: absent
-    - name: Disable SE Linux
+        cmd: /usr/bin/qmgmt volume config import S3-objects /tmp/S3-objects
+    - name: Create default rf3 volume
       shell:
-        cmd: /usr/sbin/setenforce 0
-      ignore_errors: yes
-    - name: Ensure SELinux is set to disabled mode
-      lineinfile:
-        path: /etc/selinux/config
-        regexp: '^SELINUX='
-        line: SELINUX=disabled
-      ignore_errors: yes
-    - name: Configure quobyte client configuration
-      blockinfile:
-        path: /etc/quobyte/client-service.cfg
-        block: |
-          options=default_permissions
-          disable-xattrs
-    - name: Set quobyte-client tuned profile
+        cmd: /usr/bin/qmgmt volume create vol0-rf3 root root Default-replicated
+    - name: Create default ec volume
       shell:
-        cmd: /usr/sbin/tuned-adm profile quobyte-client-performance
-    - name: Restart quobyte-client
-      service:
-        name: quobyte-client
-        state: restarted
-        enabled: yes
+        cmd: /usr/bin/qmgmt volume create vol0-ec21 root root EC-2plus1
