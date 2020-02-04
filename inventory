@@ -19,8 +19,8 @@
 4U100-node4
 
 [clients]
-5U84-node1
-5U84-node2
-5U84-node3
-5U84-node4
+#5U84-node1
+#5U84-node2
+#5U84-node3
+#5U84-node4
 
