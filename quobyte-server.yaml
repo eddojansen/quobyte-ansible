@@ -197,6 +197,8 @@
       retries: 1000
       with_items: "{{ _create_data_devices.results }}"
 - hosts: cluster
+  vars_files:
+  - vars/quobyte.yaml
   tasks:
     - name: Start and enable Quobyte metadata service
       service:
@@ -227,6 +229,17 @@
       wait_for:
         path: /var/log/quobyte/metadata.log
         search_regex: "volume initialization complete"
+    - name: Copy system configuration
+      copy:
+         src: templates/system.config
+         dest: /tmp/
+    - replace:
+        path: /tmp/system.config
+        regexp: '__REPLACE__'
+        replace: '{{ network }}'
+    - name: Import system configuration
+      shell:
+        cmd: /usr/bin/qmgmt system config import /tmp/system.config
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml
