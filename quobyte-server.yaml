@@ -239,7 +239,7 @@
         replace: '{{ network }}'
     - name: Import system configuration
       shell:
-        cmd: /usr/bin/qmgmt system config import /tmp/system.config
+        cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml
