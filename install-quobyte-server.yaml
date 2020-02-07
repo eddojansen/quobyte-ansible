@@ -133,17 +133,6 @@
     - name: Set Quobyte tuned server profile
       shell:
         cmd: tuned-adm profile quobyte-server-performance
-    - name: Copy system configuration
-      copy:
-         src: templates/system.config
-         dest: /tmp/
-    - replace:
-        path: /tmp/system.config
-        regexp: '__REPLACE__'
-        replace: '{{ network }}'
-    - name: Import system configuration
-      shell:
-        cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
 - hosts: nodes
   vars_files:
     - vars/quobyte.yaml
@@ -236,15 +225,32 @@
         name: quobyte-client
         state: restarted
         enabled: yes
+    - name: Wait until metadata service is ready
+      wait_for:
+        path: /var/log/quobyte/metadata.log
+        search_regex: "volume initialization complete"
+- hosts: bootstrap
+  vars_files:
+    - vars/quobyte.yaml
+  tasks:
+    - name: Copy system configuration
+      copy:
+         src: templates/system.config
+         dest: /tmp/
+    - replace:
+        path: /tmp/system.config
+        regexp: '__REPLACE__'
+        replace: '{{ network }}'
+    - name: Import system configuration
+      shell:
+        cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
+- hosts: cluster
+  tasks:
     - name: Start quobyte-s3
       service:
         name: quobyte-s3
         state: restarted
         enabled: yes
-    - name: Wait until metadata service is ready
-      wait_for:
-        path: /var/log/quobyte/metadata.log
-        search_regex: "volume initialization complete"
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml
