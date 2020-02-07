@@ -1,6 +1,6 @@
-This ansible playbook is designed for repo based Quobyte installations on nodes with Internet access. The playbook will install and configure prerequisites before installing and configuring a Quobyte cluster that can immediately be used to write data to (batteries included).
+This ansible playbook is designed for repo based Quobyte installations on nodes with Internet access. The playbook install-quobyte-server will install and configure prerequisites before installing and configuring a Quobyte cluster that can immediately be used for writing data (batteries included).
 
-The Quobyte client will be installed on the storage nodes, additional clients can be installed using the same playbook by populating the client nodes in the [clients] section of the inventory file.
+The Quobyte client will be installed on the storage nodes, additional clients can be installed using the install-quobyte-client playbook by populating the client nodes in the [clients] section of the inventory file.
 
 Terminology:
 
@@ -21,6 +21,9 @@ Client Node
 - A server that fulfills the minimal requirements to become a quobyte client
 - Has a root account configured used to allow management via ansible
 
+Diskformat
+- Cluster nodes with wiped or clean disks that will be used for automated format and volume creation
+
 Preparation:
 
 1) All devices (ssd,nvme,hdd) that will be used for Quobyte should be completly wiped or new 
@@ -39,7 +42,20 @@ Preparation:
  b) registry: The DNS A record for service discovery (example: registry.quobyte.local)
  c) mddisksize: The size of the flash device used for metadata on each node, example 1.2T (output size from lsblk) (only required when using [diskformat])
  d) mountpoint: Mountpoint name for the Quobyte client (example: /quobyte)
+ e) network: Specify the preffered network for traffic, usually this is the physical or logical interface with the most bandwidth
 
-4) Start the installation
+4) Start Quobyte server installation
    Within the quobyte-ansible directory run the following command on the Ansible management node or the Bootstrap node of the Quobyte cluster
-   ansible-playbook -b -i inventory quobyte-server.yaml
+   ansible-playbook -i inventory install-quobyte-server.yaml
+
+5) Start Quobyte client installation
+   Within the quobyte-ansible directory run the following command on the Ansible management node or the Bootstrap node of the Quobyte cluster
+   ansible-playbook -i inventory install-quobyte-client.yaml
+
+6) Cleanup Quobyte server installation
+   Within the quobyte-ansible directory run the following command on the Ansible management node or the Bootstrap node of the Quobyte cluster
+   ansible-playbook -i inventory clean-quobyte-server.yaml
+
+7) Cleanup Quobyte client installation
+   Within the quobyte-ansible directory run the following command on the Ansible management node or the Bootstrap node of the Quobyte cluster
+   ansible-playbook -i inventory clean-quobyte-client.yaml

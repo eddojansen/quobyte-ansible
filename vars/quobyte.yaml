@@ -1,6 +1,6 @@
-repo_id: yourepoidhere
+repo_id: 2dc3276fa0Cf532119d046eb9c35ed4c
 registry: 172.16.78.111,172.16.78.112,172.16.78.113,172.16.78.114
 network: 172.16.78.0/24
 mountpoint: /quobyte
-mddisksize: 600G
+mddisksize: 60G
 
