@@ -1,4 +1,4 @@
-repo_id: yourrepohere
+repo_id: yourrepoidhere
 registry: 172.16.78.111,172.16.78.112,172.16.78.113,172.16.78.114
 #registry: registry.quobyte.local
 network: 172.16.78.0/24

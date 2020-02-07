@@ -133,6 +133,17 @@
     - name: Set Quobyte tuned server profile
       shell:
         cmd: tuned-adm profile quobyte-server-performance
+    - name: Copy system configuration
+      copy:
+         src: templates/system.config
+         dest: /tmp/
+    - replace:
+        path: /tmp/system.config
+        regexp: '__REPLACE__'
+        replace: '{{ network }}'
+    - name: Import system configuration
+      shell:
+        cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
 - hosts: nodes
   vars_files:
     - vars/quobyte.yaml
@@ -225,21 +236,15 @@
         name: quobyte-client
         state: restarted
         enabled: yes
+    - name: Start quobyte-s3
+      service:
+        name: quobyte-s3
+        state: restarted
+        enabled: yes
     - name: Wait until metadata service is ready
       wait_for:
         path: /var/log/quobyte/metadata.log
         search_regex: "volume initialization complete"
-    - name: Copy system configuration
-      copy:
-         src: templates/system.config
-         dest: /tmp/
-    - replace:
-        path: /tmp/system.config
-        regexp: '__REPLACE__'
-        replace: '{{ network }}'
-    - name: Import system configuration
-      shell:
-        cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml
@@ -250,16 +255,23 @@
          dest: /tmp/
     - name: Import rf3 volume configuration
       shell:
-        cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated.conf
-    - name: Import ec volume configuration
+        cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated
+    - name: Import ec2+1 volume configuration
       shell:
         cmd: /usr/bin/qmgmt volume config import EC-2plus1 /tmp/EC-2plus1
+    - name: Import ec4+2 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-4plus2 /tmp/EC-4plus2
     - name: Import s3 volume configuration
       shell:
         cmd: /usr/bin/qmgmt volume config import S3-objects /tmp/S3-objects
     - name: Create default rf3 volume
       shell:
         cmd: /usr/bin/qmgmt volume create vol0-rf3 root root Default-replicated
-    - name: Create default ec volume
+    - name: Create default ec2+1 volume
       shell:
         cmd: /usr/bin/qmgmt volume create vol0-ec21 root root EC-2plus1
+    - name: Create default ec4+2 volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec42 root root EC-4plus2
+
