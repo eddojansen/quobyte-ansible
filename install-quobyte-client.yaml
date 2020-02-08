@@ -5,11 +5,11 @@
     - name: Download Quobyte Software for id {{ repo_id }}
       get_url:
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
-        dest: /root/install_quobyte
+        dest: ~/install_quobyte
         mode: '0755'
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
+        cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Ensure java is installed
       package:
         name: java-1.8.0-openjdk

@@ -6,7 +6,7 @@
     - name: Download Quobyte Software for id {{ repo_id }}
       get_url:
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
-        dest: /root/install_quobyte
+        dest: ~/install_quobyte
         mode: '0755'
     - name: Install packages Centos
       yum:
@@ -116,14 +116,14 @@
   tasks:
     - name: Install Quobyte bootstrap
       shell:
-        cmd: /root/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+        cmd: ~/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
     - name: Copy Quobyte memory config
       copy:
          src: templates/quobyte
          dest: /etc/default/
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
+        cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Configure quobyte client configuration
       blockinfile:
         path: /etc/quobyte/client-service.cfg
@@ -139,14 +139,14 @@
   tasks:
     - name: Add node to cluster
       shell:
-        cmd: /root/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+        cmd: ~/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
     - name: Copy Quobyte memory config
       copy:
          src: templates/quobyte
          dest: /etc/default/
     - name: Install Quobyte client
       shell:
-        cmd: /root/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
+        cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
     - name: Configure quobyte client configuration
       blockinfile:
         path: /etc/quobyte/client-service.cfg
@@ -229,6 +229,10 @@
       wait_for:
         path: /var/log/quobyte/metadata.log
         search_regex: "volume initialization complete"
+    - name: Wait until api service is ready
+      wait_for:
+        path: /var/log/quobyte/api.log
+        search_regex: "API service is now ready"
 - hosts: bootstrap
   vars_files:
     - vars/quobyte.yaml

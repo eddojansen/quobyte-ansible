@@ -7,21 +7,27 @@
       shell: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
       register: _quobyte_labeled
     - set_fact: f_quobyte_labeled="{{ _quobyte_labeled.stdout_lines }}"
+    - name: Unmount quobyte client mountpoint
+      shell: umount -lf {{ mountpoint }}
+      ignore_errors: yes
     - name: Uninstall quobyte
       shell:
-        cmd: /root/install_quobyte uninstall -f
+        cmd: ~/install_quobyte uninstall -f
       ignore_errors: yes
-    - name: Unmount quobyte devices
-      shell: umount -lf /var/lib/quobyte/mnt/inspector-*
     - pause:
         seconds: 5
+    - name: Unmount quobyte devices
+      shell: umount -lf /var/lib/quobyte/mnt/inspector-*
+      ignore_errors: yes
+    - pause:
+        seconds: 20
     - name: Clean directories
       file:
         path: "{{ item }}"
         state: absent
       with_items:
         - /var/lib/quobyte*
-        - /root/.quobyte
+        - ~/.quobyte
         - /opt/quobyte*
         - /usr/lib/systemd/system/quobyte*
         - /usr/bin/*quobyte*
@@ -32,6 +38,7 @@
         - /run/lock/quobyte*
         - /run/udev/links/\x2fdisk\x2fby-label\*quobyte*
         - /dev/disk/by-label/quobyte-dev
+      ignore_errors: yes
     - name:  Clean labeled devices
       shell: wipefs -af /dev/{{ item }}
       with_items:
