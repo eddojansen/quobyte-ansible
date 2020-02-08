@@ -119,8 +119,8 @@
         cmd: ~/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
     - name: Copy Quobyte memory config
       copy:
-         src: templates/quobyte
-         dest: /etc/default/
+         src: templates/quobyte-mem
+         dest: /etc/default/quobyte
     - name: Install Quobyte client
       shell:
         cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
@@ -142,8 +142,8 @@
         cmd: ~/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
     - name: Copy Quobyte memory config
       copy:
-         src: templates/quobyte
-         dest: /etc/default/
+         src: templates/quobyte-mem
+         dest: /etc/default/quobyte
     - name: Install Quobyte client
       shell:
         cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
