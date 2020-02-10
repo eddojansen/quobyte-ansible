@@ -2,6 +2,7 @@
 - hosts: cluster
   vars_files:
     - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Download Quobyte Software for id {{ repo_id }}
       get_url:
@@ -72,6 +73,7 @@
 - hosts: diskformat
   vars_files:
   - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Create a list of all devices
       shell:
@@ -113,6 +115,7 @@
 - hosts: bootstrap
   vars_files:
     - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Install Quobyte bootstrap
       shell:
@@ -136,6 +139,7 @@
 - hosts: nodes
   vars_files:
     - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Add node to cluster
       shell:
@@ -166,6 +170,7 @@
 - hosts: diskformat
   vars_files:
   - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Select the Metadata disk based on mddisksize
       shell:
@@ -199,6 +204,7 @@
 - hosts: cluster
   vars_files:
   - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Start and enable Quobyte metadata service
       service:
@@ -236,6 +242,7 @@
 - hosts: bootstrap
   vars_files:
     - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Copy system configuration
       copy:
@@ -253,6 +260,7 @@
       shell:
         cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
 - hosts: cluster
+  become: yes
   tasks:
     - name: Start quobyte-s3
       service:
@@ -262,6 +270,7 @@
 - hosts: diskformat,!nodes
   vars_files:
   - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Copy default volume configuration
       copy:

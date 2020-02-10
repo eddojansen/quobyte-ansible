@@ -2,6 +2,7 @@
 - hosts: cluster
   vars_files:
     - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Create quobyte label list
       shell: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'

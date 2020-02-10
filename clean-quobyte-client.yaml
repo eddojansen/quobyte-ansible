@@ -2,6 +2,7 @@
 - hosts: clients
   vars_files:
     - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Uninstall quobyte
       shell:
