@@ -1,22 +1,22 @@
 [bootstrap]
-quobyte-node1
+qnode1
 
 [nodes]
-quobyte-node2
-quobyte-node3
-quobyte-node4
+qnode2
+qnode3
+qnode4
 
 [cluster]
-quobyte-node1
-quobyte-node2
-quobyte-node3
-quobyte-node4
+qnode1
+qnode2
+qnode3
+qnode4
 
 [diskformat]
-quobyte-node1
-quobyte-node2
-quobyte-node3
-quobyte-node4
+qnode1
+qnode2
+qnode3
+qnode4
 
 [clients]
 #5U84-node1

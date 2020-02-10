@@ -243,8 +243,12 @@
          dest: /tmp/
     - replace:
         path: /tmp/system.config
-        regexp: '__REPLACE__'
+        regexp: '__NW__'
         replace: '{{ network }}'
+    - replace:
+        path: /tmp/system.config
+        regexp: '__S3__'
+        replace: '{{ s3_endpoint }}'
     - name: Import system configuration
       shell:
         cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
