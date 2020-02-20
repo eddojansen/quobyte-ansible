@@ -8,20 +8,37 @@
       shell: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
       register: _quobyte_labeled
     - set_fact: f_quobyte_labeled="{{ _quobyte_labeled.stdout_lines }}"
-    - name: Unmount quobyte client mountpoint
-      shell: umount -lf {{ mountpoint }}
+    - name: Create quobyte mounpoint list
+      shell: lsblk -o mountpoint,label |grep quobyte-dev |awk '{print $1}'
+      register: _quobyte_mountpoints
+    - set_fact: f_quobyte_mountpoints="{{ _quobyte_mountpoints.stdout_lines }}"
+    - name: Kill quobyte services
+      shell: pkill -9 -f "{{ item }}"
+      with_items:
+        - quobyte-registry
+        - quobyte-metadata
+        - quobyte-data
+        - quobyte-api
+        - quobyte-webconsole
+        - quobyte-s3
+        - quobyte-nfs
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
+      ignore_errors: yes
+    - name: Unmount quobyte devices
+      shell: umount -lf "{{ item }}"
+      with_items:
+        - "{{ f_quobyte_mountpoints }}"
+        - "{{ mountpoint }}"
+      register: command_result2
+      failed_when: "'ERROR' in command_result2.stderr"
       ignore_errors: yes
     - name: Uninstall quobyte
       shell:
         cmd: ~/install_quobyte uninstall -f
+      register: command_result3
+      failed_when: "'ERROR' in command_result3.stderr"
       ignore_errors: yes
-    - pause:
-        seconds: 5
-    - name: Unmount quobyte devices
-      shell: umount -lf /var/lib/quobyte/mnt/inspector-*
-      ignore_errors: yes
-    - pause:
-        seconds: 20
     - name: Clean directories
       file:
         path: "{{ item }}"
