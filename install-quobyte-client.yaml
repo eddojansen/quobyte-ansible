@@ -46,6 +46,9 @@
         block: |
           options=default_permissions
           disable-xattrs
+          cache-size=20G
+          features=fast_read
+          sequential_window_max_prefetch_horizon=3
     - name: Set quobyte-client tuned profile
       shell:
         cmd: /usr/sbin/tuned-adm profile quobyte-client-performance

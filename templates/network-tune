@@ -1,0 +1,12 @@
+#!/bin/sh
+_if=$(ip link |grep UP |grep -v lo |awk -F ':' '{print $2}')
+_cpu=$(cat /proc/cpuinfo |grep "cpu cores"|uniq |awk '{print $4}')
+for i in $_if
+do 
+ethtool -G $i rx 4096 tx 4096
+ethtool -A $i autoneg off rx off tx off
+ethtool -C $i adaptive-rx on adaptive-tx on
+ethtool --features $i ntuple on
+ethtool -L $i combined $_cpu
+done
+:

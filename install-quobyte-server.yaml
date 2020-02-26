@@ -20,7 +20,7 @@
         - chrony
         - atop
         - htop
-        - git
+        - numactl
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Install packages Ubuntu
       apt:
@@ -32,7 +32,7 @@
         - chrony
         - atop
         - htop
-        - git
+        - numactl
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Disable SE Linux
       shell:
@@ -70,6 +70,33 @@
     - name: Disable swap
       shell:
         cmd: swapoff -a
+    - name: Copy Network tune config
+      copy:
+         src: templates/network-tune
+         dest: /etc/init.d/
+         mode: '0770'
+    - name: Copy Network tune service
+      copy:
+         src: templates/network-tune.service
+         dest: /etc/systemd/system/
+    - name: Reload service daemon
+      shell:
+        cmd: systemctl daemon-reload
+    - name: Start and enable Network tune service
+      service:
+        name: network-tune
+        state: started
+        enabled: yes
+    - name: Ensure irqbalance is set to oneshot
+      lineinfile:
+        path: /etc/sysconfig/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+    - name: Restart irqbalance
+      service:
+        name: irqbalance
+        state: restarted 
+        enabled: yes
 - hosts: diskformat
   vars_files:
   - vars/quobyte.yaml
@@ -211,10 +238,14 @@
         name: quobyte-metadata
         state: started
         enabled: yes
+    - name: Copy quobyte-data configuration
+      copy:
+         src: templates/quobyte-data
+         dest: /usr/bin/quobyte-data
     - name: Start and enable Quobyte data service
       service:
         name: quobyte-data
-        state: started
+        state: restarted
         enabled: yes
     - name: Start and enable Quobyte api service
       service:
@@ -276,25 +307,54 @@
       copy:
          src: templates/
          dest: /tmp/
+    - name: Import rf1 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import Single-replica /tmp/Single-replica.cfg
     - name: Import rf3 volume configuration
       shell:
-        cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated
+        cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated.cfg
     - name: Import ec2+1 volume configuration
       shell:
-        cmd: /usr/bin/qmgmt volume config import EC-2plus1 /tmp/EC-2plus1
+        cmd: /usr/bin/qmgmt volume config import EC-2plus1 /tmp/EC-2plus1.cfg
+    - name: Import ec2+1-small volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-2plus1-small /tmp/EC-2plus1-small.cfg
     - name: Import ec4+2 volume configuration
       shell:
-        cmd: /usr/bin/qmgmt volume config import EC-4plus2 /tmp/EC-4plus2
+        cmd: /usr/bin/qmgmt volume config import EC-4plus2 /tmp/EC-4plus2.cfg
+    - name: Import ec4+2-small volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-4plus2-small /tmp/EC-4plus2-small.cfg
+    - name: Import ec8+2 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-8plus2 /tmp/EC-8plus2.cfg
+    - name: Import ec8+2-small volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-8plus2-small /tmp/EC-8plus2-small.cfg
     - name: Import s3 volume configuration
       shell:
-        cmd: /usr/bin/qmgmt volume config import S3-objects /tmp/S3-objects
+        cmd: /usr/bin/qmgmt volume config import S3-objects /tmp/S3-objects.cfg
+    - name: Create default rf1 volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-rf1 root root Single-replica
     - name: Create default rf3 volume
       shell:
         cmd: /usr/bin/qmgmt volume create vol0-rf3 root root Default-replicated
     - name: Create default ec2+1 volume
       shell:
         cmd: /usr/bin/qmgmt volume create vol0-ec21 root root EC-2plus1
+    - name: Create default ec2+1-small volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec21-small root root EC-2plus1-small
     - name: Create default ec4+2 volume
       shell:
         cmd: /usr/bin/qmgmt volume create vol0-ec42 root root EC-4plus2
-
+    - name: Create default ec4+2-small volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec42-small root root EC-4plus2-small
+    - name: Create default ec8+2 volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec82 root root EC-8plus2
+    - name: Create default ec8+2-small volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec82-small root root EC-8plus2-small
