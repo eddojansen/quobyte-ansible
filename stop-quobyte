@@ -1,0 +1,15 @@
+systemctl stop quobyte-nfs
+systemctl stop quobyte-s3.service
+systemctl stop quobyte-webconsole
+systemctl stop quobyte-api
+systemctl stop quobyte-data
+systemctl stop quobyte-metadata
+systemctl stop quobyte-registry
+#
+systemctl status quobyte-registry
+systemctl status quobyte-metadata
+systemctl status quobyte-data
+systemctl status quobyte-api
+systemctl status quobyte-webconsole
+systemctl status quobyte-s3.service
+systemctl status quobyte-nfs

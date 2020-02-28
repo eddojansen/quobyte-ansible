@@ -1,0 +1,16 @@
+systemctl start quobyte-registry
+systemctl start quobyte-metadata
+systemctl start quobyte-data
+systemctl start quobyte-api
+systemctl start quobyte-webconsole
+systemctl start quobyte-s3.service
+systemctl start quobyte-nfs
+#
+systemctl status quobyte-registry
+systemctl status quobyte-metadata
+systemctl status quobyte-data
+systemctl status quobyte-api
+systemctl status quobyte-webconsole
+systemctl status quobyte-s3.service
+systemctl status quobyte-nfs
+~                               
