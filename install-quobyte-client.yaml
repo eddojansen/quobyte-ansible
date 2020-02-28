@@ -48,13 +48,13 @@
           disable-xattrs
           cache-size=20G
           features=fast_read
-          sequential_window_max_prefetch_horizon=3
+          sequential_window_max_prefetch_horizon=20
     - name: Add optimizations to tuned
       blockinfile:
         path: /usr/lib/tuned/quobyte-client-performance/tuned.conf
         insertafter: 'net.ipv4.tcp_slow_start_after_idle = 0'
         block: |
-          net.core.netdev_max_backlog=24000
+          net.core.netdev_max_backlog=64000
           net.core.rmem_max = 2147483647
           net.core.wmem_max = 2147483647
           net.ipv4.tcp_rmem = 4096 87380 2147483647
