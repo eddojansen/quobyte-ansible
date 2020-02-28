@@ -21,6 +21,7 @@
         - atop
         - htop
         - numactl
+        - netdata
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Install packages Ubuntu
       apt:
@@ -33,6 +34,7 @@
         - atop
         - htop
         - numactl
+        - netdata
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Disable SE Linux
       shell:
@@ -160,6 +162,24 @@
         block: |
           options=default_permissions
           disable-xattrs
+    - name: Remove some items from tuned
+      lineinfile:
+        state: absent
+        path: /usr/lib/tuned/quobyte-server-performance/tuned.conf
+        regexp: '^net.core.*_max'
+      ignore_errors: yes
+    - name: Add optimizations to tuned
+      blockinfile:
+        path: /usr/lib/tuned/quobyte-server-performance/tuned.conf
+        insertafter: 'net.ipv4.tcp_slow_start_after_idle = 0'
+        block: |
+          net.core.netdev_max_backlog=64000
+          net.core.rmem_max = 2147483647
+          net.core.wmem_max = 2147483647
+          net.ipv4.tcp_rmem = 4096 87380 2147483647
+          net.ipv4.tcp_wmem = 4096 65536 2147483647
+          net.ipv4.tcp_congestion_control=htcp
+          fs.xfs.xfssyncd_centisecs = 10000
     - name: Set Quobyte tuned server profile
       shell:
         cmd: tuned-adm profile quobyte-server-performance
@@ -184,6 +204,24 @@
         block: |
           options=default_permissions
           disable-xattrs
+    - name: Remove some items from tuned
+      lineinfile:
+        state: absent
+        path: /usr/lib/tuned/quobyte-server-performance/tuned.conf
+        regexp: '^net.core.*_max'
+      ignore_errors: yes
+    - name: Add optimizations to tuned
+      blockinfile:
+        path: /usr/lib/tuned/quobyte-server-performance/tuned.conf
+        insertafter: 'net.ipv4.tcp_slow_start_after_idle = 0'
+        block: |
+          net.core.netdev_max_backlog=64000
+          net.core.rmem_max = 2147483647
+          net.core.wmem_max = 2147483647
+          net.ipv4.tcp_rmem = 4096 87380 2147483647
+          net.ipv4.tcp_wmem = 4096 65536 2147483647
+          net.ipv4.tcp_congestion_control=htcp
+          fs.xfs.xfssyncd_centisecs = 10000
     - name: Set Quobyte tuned server profile
       shell:
         cmd: tuned-adm profile quobyte-server-performance
