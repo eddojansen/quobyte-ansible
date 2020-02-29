@@ -4,6 +4,37 @@
     - vars/quobyte.yaml
   become: yes
   tasks:
+    - name: Remove packages Centos
+      yum:
+        name: "{{ packages }}"
+        state: absent
+        update_cache: yes
+      vars:
+        packages:
+        - java-1.8.0-openjdk
+        - chrony
+        - atop
+        - htop
+        - numactl
+        - netdata
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+    - name: Remove packages Ubuntu
+      apt:
+        name: "{{ packages }}"
+        state: absent
+      vars:
+        packages:
+        - openjdk-8-jre-headless
+        - chrony
+        - atop
+        - htop
+        - numactl
+        - netdata
+        - tuned
+        - postfix
+        - quobyte-server
+        - quobyte-client
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Uninstall quobyte
       shell:
         cmd: ~/install_quobyte uninstall -f

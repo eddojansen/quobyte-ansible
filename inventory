@@ -1,22 +1,22 @@
 [bootstrap]
-qnode1
+ubuntu1
 
 [nodes]
-qnode2
-qnode3
-qnode4
+ubuntu2
+ubuntu3
+ubuntu4
 
 [cluster]
-qnode1
-qnode2
-qnode3
-qnode4
+ubuntu1
+ubuntu2
+ubuntu3
+ubuntu4
 
 [diskformat]
-qnode1
-qnode2
-qnode3
-qnode4
+ubuntu1
+ubuntu2
+ubuntu3
+ubuntu4
 
 [clients]
 #5U84-node1

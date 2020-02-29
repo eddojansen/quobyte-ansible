@@ -9,6 +9,17 @@
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
         dest: ~/install_quobyte
         mode: '0755'
+    - name: Supports a validate command
+      replace:
+        path: ~/install_quobyte
+        regexp: 'sudo dpkg-reconfigure --unseen-only postfix'
+        replace: ''
+    - name: Install Epel Centos
+      yum:
+        name: epel-release
+        state: present
+        update_cache: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Install packages Centos
       yum:
         name: "{{ packages }}"
@@ -17,6 +28,8 @@
       vars:
         packages:
         - java-1.8.0-openjdk
+        - java-11-openjdk-devel
+        - openjdk-11-jre-headless  
         - chrony
         - atop
         - htop
@@ -30,12 +43,14 @@
       vars:
         packages:
         - openjdk-8-jre-headless
+        - openjdk-11-jre-headless
         - chrony
         - atop
         - htop
         - numactl
         - netdata
-      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+        - tuned
+        - postfix
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
@@ -89,11 +104,18 @@
         name: network-tune
         state: started
         enabled: yes
-    - name: Ensure irqbalance is set to oneshot
+    - name: Ensure irqbalance is set to oneshot - Centos
       lineinfile:
         path: /etc/sysconfig/irqbalance
         regexp: '^#IRQBALANCE_ONESHOT='
         line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+    - name: Ensure irqbalance is set to oneshot - Ubuntu
+      lineinfile:
+        path: /etc/default/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Restart irqbalance
       service:
         name: irqbalance
@@ -106,7 +128,7 @@
   tasks:
     - name: Create a list of all devices
       shell:
-        cmd: /usr/bin/lsblk -dn -o NAME,TYPE |grep disk |awk '{print $1}'
+        cmd: lsblk -dn -o NAME,TYPE |grep disk |awk '{print $1}'
       register: list_all
     - set_fact: flist_all="{{ list_all.stdout_lines }}"
     - name: Create a list of non empty devices

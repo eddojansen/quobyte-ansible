@@ -1,5 +1,5 @@
 repo_id: yourrepoidhere
-registry: 172.16.78.111,172.16.78.112,172.16.78.113,172.16.78.114
+registry: 172.16.78.231,172.16.78.232,172.16.78.233,172.16.78.234
 #registry: registry.quobyte.local
 s3_endpoint: s3.quobyte.local
 network: 172.16.78.0/24
