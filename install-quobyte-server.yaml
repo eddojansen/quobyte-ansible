@@ -9,7 +9,7 @@
         url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
         dest: ~/install_quobyte
         mode: '0755'
-    - name: Supports a validate command
+    - name: Prevent STUPID Postfix popup
       replace:
         path: ~/install_quobyte
         regexp: 'sudo dpkg-reconfigure --unseen-only postfix'
@@ -27,9 +27,7 @@
         update_cache: yes
       vars:
         packages:
-        - java-1.8.0-openjdk
-        - java-11-openjdk-devel
-        - openjdk-11-jre-headless  
+        - java-11-openjdk
         - chrony
         - atop
         - htop
@@ -42,7 +40,6 @@
         state: present
       vars:
         packages:
-        - openjdk-8-jre-headless
         - openjdk-11-jre-headless
         - chrony
         - atop
@@ -51,6 +48,7 @@
         - netdata
         - tuned
         - postfix
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
@@ -63,6 +61,8 @@
         path: /etc/selinux/config
         regexp: '^SELINUX='
         line: SELINUX=disabled
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
       ignore_errors: yes
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Ensure Apparmor is stopped
@@ -87,21 +87,21 @@
     - name: Disable swap
       shell:
         cmd: swapoff -a
-    - name: Copy Network tune config
+    - name: Copy network_tune config
       copy:
-         src: templates/network-tune
+         src: templates/network_tune
          dest: /etc/init.d/
          mode: '0770'
-    - name: Copy Network tune service
+    - name: Copy network_tune service
       copy:
-         src: templates/network-tune.service
+         src: templates/network_tune.service
          dest: /etc/systemd/system/
     - name: Reload service daemon
       shell:
         cmd: systemctl daemon-reload
-    - name: Start and enable Network tune service
+    - name: Start and enable network_tune service
       service:
-        name: network-tune
+        name: network_tune
         state: started
         enabled: yes
     - name: Ensure irqbalance is set to oneshot - Centos
@@ -247,8 +247,6 @@
     - name: Set Quobyte tuned server profile
       shell:
         cmd: tuned-adm profile quobyte-server-performance
-    - pause:
-        seconds: 10
     - name: Check number of mounts
       shell:
         cmd: mount -l |grep -c quobyte-dev

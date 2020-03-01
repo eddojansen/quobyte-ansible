@@ -38,11 +38,7 @@
         update_cache: yes
       vars:
         packages:
-        - java-11-openjdk-devel        
-        - java-1.8.0-openjdk
-        - chrony
-        - atop
-        - htop
+        - java-11-openjdk
         - numactl
         - netdata
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
@@ -53,13 +49,8 @@
       vars:
         packages:
         - openjdk-11-jre-headless
-        - openjdk-8-jre-headless
-        - chrony
-        - atop
-        - htop
         - numactl
         - netdata
-        - tuned
         - postfix
         - quobyte-server
         - quobyte-client  
@@ -72,6 +63,12 @@
       shell: umount -lf /var/lib/quobyte/mnt/inspector-*
       register: command_result
       failed_when: "'ERROR' in command_result.stderr"
+      ignore_errors: yes
+    - name: Disable network tune service
+      service:
+        name: network_tune
+        state: stopped
+        enabled: no
       ignore_errors: yes
     - name: Clean directories
       file:
@@ -90,6 +87,8 @@
         - /run/lock/quobyte*
         - /run/udev/links/\x2fdisk\x2fby-label\*quobyte*
         - /dev/disk/by-label/quobyte-dev
+        - /etc/init.d/network-tune
+        - /etc/systemd/system/network-tune.service
       ignore_errors: yes
     - name:  Clean labeled devices
       shell: wipefs -af /dev/{{ item }}
@@ -99,3 +98,8 @@
       shell: wipefs -af /dev/{{ item }}
       with_items:
         - "{{ f_quobyte_mountpoint }}"
+    - name:  Set tuned profile to balanced 
+      shell: tuned-adm profile balanced
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
+      ignore_errors: yes

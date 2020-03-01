@@ -11,10 +11,6 @@
         update_cache: yes
       vars:
         packages:
-        - java-1.8.0-openjdk
-        - chrony
-        - atop
-        - htop
         - numactl
         - netdata
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
@@ -24,13 +20,8 @@
         state: absent
       vars:
         packages:
-        - openjdk-8-jre-headless
-        - chrony
-        - atop
-        - htop
         - numactl
         - netdata
-        - tuned
         - postfix
         - quobyte-server
         - quobyte-client
@@ -38,4 +29,15 @@
     - name: Uninstall quobyte
       shell:
         cmd: ~/install_quobyte uninstall -f
+      ignore_errors: yes
+    - name: Disable network tune service
+      service:
+        name: network_tune
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+    - name:  Set tuned profile to balanced
+      shell: tuned-adm profile balanced
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
       ignore_errors: yes

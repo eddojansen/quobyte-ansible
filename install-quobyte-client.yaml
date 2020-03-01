@@ -1,6 +1,7 @@
 - hosts: clients
   vars_files:
     - vars/quobyte.yaml
+  become: yes
   tasks:
     - name: Download Quobyte Software for id {{ repo_id }}
       get_url:
@@ -10,10 +11,6 @@
     - name: Install Quobyte client
       shell:
         cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
-    - name: Ensure java is installed
-      package:
-        name: java-1.8.0-openjdk
-        state: present
     - name: Ensure chrony is installed
       package:
         name: chrony
@@ -22,17 +19,11 @@
       package:
         name: tuned
         state: present
-    - name: Ensure ntp is removed
-      package:
-        name: ntp
-        state: absent
-    - name: Ensure ntpdate is removed
-      package:
-        name: ntpdate
-        state: absent
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
       ignore_errors: yes
     - name: Ensure SELinux is set to disabled mode
       lineinfile:
@@ -40,13 +31,55 @@
         regexp: '^SELINUX='
         line: SELINUX=disabled
       ignore_errors: yes
+    - name: Remove swaps from fstab
+      lineinfile:
+        dest: /etc/fstab
+        regexp: '^/[\S]+\s+swap\s+swap'
+        state: absent
+      notify: disable swap
+    - name: Disable swap
+      shell:
+        cmd: swapoff -a
+    - name: Copy network_tune config
+      copy:
+         src: templates/network_tune
+         dest: /etc/init.d/
+         mode: '0770'
+    - name: Copy network_tune service
+      copy:
+         src: templates/network_tune.service
+         dest: /etc/systemd/system/
+    - name: Reload service daemon
+      shell:
+        cmd: systemctl daemon-reload
+    - name: Start and enable network_tune service
+      service:
+        name: network_tune
+        state: started
+        enabled: yes
+    - name: Ensure irqbalance is set to oneshot - Centos
+      lineinfile:
+        path: /etc/sysconfig/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+    - name: Ensure irqbalance is set to oneshot - Ubuntu
+      lineinfile:
+        path: /etc/default/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+    - name: Restart irqbalance
+      service:
+        name: irqbalance
+        state: restarted
+        enabled: yes
     - name: Configure quobyte client configuration
       blockinfile:
         path: /etc/quobyte/client-service.cfg
         block: |
           options=default_permissions
           disable-xattrs
-          cache-size=20G
           features=fast_read
           sequential_window_max_prefetch_horizon=20
     - name: Add optimizations to tuned
@@ -60,7 +93,6 @@
           net.ipv4.tcp_rmem = 4096 87380 2147483647
           net.ipv4.tcp_wmem = 4096 65536 2147483647
           net.ipv4.tcp_congestion_control=htcp
-          fs.xfs.xfssyncd_centisecs = 10000
     - name: Set quobyte-client tuned profile
       shell:
         cmd: /usr/sbin/tuned-adm profile quobyte-client-performance
