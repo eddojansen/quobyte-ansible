@@ -13,6 +13,8 @@
         packages:
         - numactl
         - netdata
+        - quobyte-server
+        - quobyte-client
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Remove packages Ubuntu
       apt:
