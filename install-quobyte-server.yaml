@@ -33,6 +33,7 @@
         - htop
         - numactl
         - netdata
+        - irqbalance
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
     - name: Install packages Ubuntu
       apt:
@@ -46,6 +47,7 @@
         - htop
         - numactl
         - netdata
+        - irqbalance  
         - tuned
         - postfix
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'

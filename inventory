@@ -1,26 +1,25 @@
 [bootstrap]
-qnode1
+ubuntu1
 
 [nodes]
-qnode2
-qnode3
-qnode4
+ubuntu2
+ubuntu3
+ubuntu4
 
 [cluster]
-qnode1
-qnode2
-qnode3
-qnode4
-
-[diskformat]
-qnode1
-qnode2
-qnode3
-qnode4
-
-[clients]
 ubuntu1
 ubuntu2
 ubuntu3
 ubuntu4
 
+[diskformat]
+ubuntu1
+ubuntu2
+ubuntu3
+ubuntu4
+
+[clients]
+qnode1
+qnode2
+qnode3
+qnode4
