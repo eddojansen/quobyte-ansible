@@ -1,4 +1,4 @@
-repo_id: 2dc3276fa0Cf532119d046eb9c35ed4c
+repo_id: yourrepohere
 registry: 172.16.78.231,172.16.78.232,172.16.78.233,172.16.78.234
 #registry: registry.quobyte.local
 s3_endpoint: s3.quobyte.local

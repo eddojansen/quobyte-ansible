@@ -4,25 +4,39 @@ The Quobyte client will be installed on the storage nodes, additional clients ca
 
 Terminology:
 
-Bootstrap
-- Has CentOS 7 or Ubuntu 18 up and running
-- Requires an Ansible management node or the first node in the Quobyte cluster to have ansible installed
-- Has root access to all nodes and clients that should be part of the cluster by name
-- Has passwordless key access to all cluster and client nodes
-- The host key for all cluster and client nodes has been accepted (by connecting to each node once)
+[bootstrap] description
+The bootstrap node is the first node in the cluster
+There can only be one bootstrap node
+The bootstrap node also has registry, metadata and data services installed
 
-Cluster Node
-- Has CentOS 7 or Ubuntu 18 up and running
-- A server that fulfills the minimal requirements to become a quobyte node
-- Has a root account configured used to allow management via ansible
+[bootstrap] requirements
+Has CentOS 7 or Ubuntu 18 up and running
+Requires an Ansible management node or the first node in the Quobyte cluster to have ansible installed
+Has root or sudoers access to all nodes and clients that should be part of the cluster
+Has passwordless key access to all cluster and client nodes
+The host key for all cluster and client nodes has been accepted or checking has been disabled
+Has a root or sudors account configured used to allow management via ansible
 
-Client Node
-- Has CentOS 7 or Ubuntu 18 up and running (Quobyte also support clients for Windows and MAc but support for these are not included in this playbook)
-- A server that fulfills the minimal requirements to become a quobyte client
-- Has a root account configured used to allow management via ansible
+[reg_nodes] description
+The registry nodes are used for service lookup, it can be compaired to a lightweight DNS server
+The bootstrap node is the first registry server in the cluster
+It is recommended to have a total of 3 to 5 registry servers in the cluster
+Registry nodes also have metadata and data services installed
 
-Diskformat
-- Cluster nodes with wiped or clean disks that will be used for automated format and volume creation
+[reg_nodes] requirements
+Has CentOS 7 or Ubuntu 18 up and running
+A server that fulfills the minimal requirements to become a quobyte node
+Has a root or sudors account configured used to allow management via ansible
+
+[std_nodes] description
+You can have as many cluster nodes as you want
+Cluster nodes have metadata and data services installed
+If you only have 4 nodes in the cluster you might not have any entries here but only in bootstrap and reg_nodes
+
+[std_nodes requirements
+Has CentOS 7 or Ubuntu 18 up and running
+A server that fulfills the minimal requirements to become a quobyte node
+Has a root or sudors account configured used to allow management via ansible
 
 Preparation:
 
@@ -30,10 +44,9 @@ Preparation:
    Please use 'wipefs -av' to clean repurposed devices
 
 2) Edit the inventory file
- a) In section [cluster] put all Cluster Nodes by name (one per line)
- b) In section [bootstrap] put one Cluster Node by name
- c) In section [nodes] put all Cluster Nodes except the one you selected to be the bootstrap node 
- d) In section [diskformat] put in all Cluster Nodes if you want the playbook to automaticly create a default volume (batteries included) (requires mddisksize)
+ a) In section [bootstrap] put one Cluster Node by name
+ b) In section [reg_nodes] put additional registry nodes here 2 entries here will result in a total of 3 registry servers (including bootstrap) (one per line)
+ c) In section [std_nodes] put all additional nodes (if any) that should be added to the cluster (one per line)
  d) In section [clients] put all Client Nodes by name (one per line) (Cluster nodes already have the client installed)
 
 3) Edit vars/quobyte.yaml
@@ -43,6 +56,7 @@ Preparation:
  c) mddisksize: The size of the flash device used for metadata on each node, example 1.2T (output size from lsblk) (only required when using [diskformat])
  d) mountpoint: Mountpoint name for the Quobyte client (example: /quobyte)
  e) network: Specify the preffered network for traffic, usually this is the physical or logical interface with the most bandwidth
+ f) s3_endpoint: dns name for s3 usage
 
 4) Start Quobyte server installation
    Within the quobyte-ansible directory run the following command on the Ansible management node or the Bootstrap node of the Quobyte cluster

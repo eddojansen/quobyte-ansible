@@ -4,6 +4,7 @@
     - vars/quobyte.yaml
   become: yes
   tasks:
+
     - name: Remove packages Centos
       yum:
         name: "{{ packages }}"
@@ -16,6 +17,7 @@
         - quobyte-server
         - quobyte-client
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
     - name: Remove packages Ubuntu
       apt:
         name: "{{ packages }}"
@@ -28,16 +30,19 @@
         - quobyte-server
         - quobyte-client
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
     - name: Uninstall quobyte
       shell:
         cmd: ~/install_quobyte uninstall -f
       ignore_errors: yes
+
     - name: Disable network tune service
       service:
         name: network_tune
         state: stopped
         enabled: no
       ignore_errors: yes
+
     - name:  Set tuned profile to balanced
       shell: tuned-adm profile balanced
       register: command_result
