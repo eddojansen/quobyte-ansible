@@ -40,6 +40,7 @@
         - atop
         - htop
         - numactl
+        - numad
         - netdata
         - irqbalance
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
@@ -56,11 +57,28 @@
         - atop
         - htop
         - numactl
+        - numad
         - netdata
         - irqbalance  
         - tuned
         - postfix
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: packages
+
+    - name: Ensure Chrony is running
+      service:
+        name: chronyd
+        state: started
+        enabled: yes
+      ignore_errors: yes
+      tags: packages
+
+    - name: Ensure Numad is running
+      service:
+        name: numad
+        state: started
+        enabled: yes
+      ignore_errors: yes
       tags: packages
 
     - name: Disable SE Linux
@@ -212,10 +230,11 @@
       register: _number_devices
       tags: devices
 
-- hosts: bootstrap
+- hosts: cluster[0]
   vars_files:
     - vars/quobyte.yaml
   become: yes
+  gather_facts: no
   tasks:
 
     - name: Install Quobyte bootstrap
@@ -223,20 +242,23 @@
         cmd: ~/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
       tags: bootstrap
 
-- hosts: reg_nodes,!bootstrap
+- hosts: cluster[1:4],!cluster[0]
   vars_files:
     - vars/quobyte.yaml
   become: yes
+  gather_facts: no
   tasks:
-    - name: Add additional Quobyte registry nodes (3 to 5 nodes is recommended)
+
+    - name: Add additional Quobyte registry nodes
       shell:
         cmd: ~/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
       tags: add_regnodes
 
-- hosts: std_nodes,!reg_nodes,!bootstrap
+- hosts: cluster,!cluster[0:4]
   vars_files:
     - vars/quobyte.yaml
   become: yes
+  gather_facts: no
   tasks:
 
     - name: Add additional Quobyte cluster nodes
@@ -248,6 +270,7 @@
   vars_files:
     - vars/quobyte.yaml
   become: yes
+  gather_facts: yes
   tasks:
 
     - name: Copy Quobyte memory config
@@ -272,15 +295,10 @@
           multiclient_nr_clients=4
       tags: tune
 
-    - name: Add optimizations to tuned
-      blockinfile:
-        path: /usr/lib/tuned/quobyte-server-performance/tuned.conf
-        insertafter: 'net.ipv4.tcp_slow_start_after_idle = 0'
-        block: |
-          net.ipv4.tcp_congestion_control=htcp
-          net.ipv4.tcp_ecn = 1
-          net.ipv4.tcp_max_reording = 600
-          net.core.netdev_budget = 1200
+    - name: Copy updated Quobyte tuned config
+      copy:
+         src: templates/tuned.conf
+         dest: /usr/lib/tuned/quobyte-server-performance/
       tags: tune
 
     - name: Set Quobyte tuned server profile
@@ -336,6 +354,7 @@
   vars_files:
   - vars/quobyte.yaml
   become: yes
+  gather_facts: no
   tasks:
 
     - name: Start and enable Quobyte metadata service
@@ -391,10 +410,11 @@
         search_regex: "API service is now ready"
       tags: services
 
-- hosts: bootstrap
+- hosts: cluster[0]
   vars_files:
     - vars/quobyte.yaml
   become: yes
+  gather_facts: no
   tasks:
 
     - name: Copy system configuration
@@ -422,6 +442,7 @@
 
 - hosts: cluster
   become: yes
+  gather_facts: no
   tasks:
 
     - name: Start quobyte-s3
@@ -431,10 +452,11 @@
         enabled: yes
       tags: services
 
-- hosts: bootstrap
+- hosts: cluster[0]
   vars_files:
     - vars/quobyte.yaml
   become: yes
+  gather_facts: no
   tasks:
 
     - name: Copy default volume configuration

@@ -1,37 +1,18 @@
-[cluster:children]
-bootstrap
-nodes
-
-[nodes:children]
-reg_nodes
-std_nodes
-
-[bootstrap]
-# The bootstrap node is the first node in the cluster
-# There can only be one bootstrap node
-# The bootstrap node also has registry, metadata and data services installed
+[cluster]
 ubuntu1
-
-
-[reg_nodes]
-# The registry nodes are used for service lookup, it can be compaired to a lightweight DNS server
-# The bootstrap node is the first registry server in the cluster
-# It is recommended to have a total of 3 to 5 registry servers in the cluster
-# Registry nodes also have metadata and data services installed
 ubuntu2
 ubuntu3
-
-[std_nodes]
-# You can have as many cluster nodes as you want
-# Cluster nodes have metadata and data services installed
-# If you only have 4 nodes in the cluster you might not have any entries here
 ubuntu4
+qnode1
+qnode2
+qnode3
+qnode4
 #ubuntu5
 #ubuntu6
 #ubuntu7
 
 [clients]
-qnode1
-qnode2
-qnode3
-qnode4
+#qnode1
+#qnode2
+#qnode3
+#qnode4

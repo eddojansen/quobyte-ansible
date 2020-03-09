@@ -4,39 +4,21 @@ The Quobyte client will be installed on the storage nodes, additional clients ca
 
 Terminology:
 
-[bootstrap] description
-The bootstrap node is the first node in the cluster
-There can only be one bootstrap node
-The bootstrap node also has registry, metadata and data services installed
+The first node in the inventory file is used as a bootstrap node to install and configure the Quobyte cluster
+The first five nodes (or four if your cluster is only four nodes) in the inventory file are also used as registry nodes
+The registry nodes are used for service lookup, it can be compaired to a lightweight DNS server
+Registry nodes like all other nodes have metadata and data services installed and will play an active role in the cluster
+You can have as many cluster nodes as you want!
 
-[bootstrap] requirements
-Has CentOS 7 or Ubuntu 18 up and running
+Requirements:
+
+Has CentOS 7.x or Ubuntu 18.x up and running with networking configured
 Requires an Ansible management node or the first node in the Quobyte cluster to have ansible installed
 Has root or sudoers access to all nodes and clients that should be part of the cluster
 Has passwordless key access to all cluster and client nodes
 The host key for all cluster and client nodes has been accepted or checking has been disabled
 Has a root or sudors account configured used to allow management via ansible
 
-[reg_nodes] description
-The registry nodes are used for service lookup, it can be compaired to a lightweight DNS server
-The bootstrap node is the first registry server in the cluster
-It is recommended to have a total of 3 to 5 registry servers in the cluster
-Registry nodes also have metadata and data services installed
-
-[reg_nodes] requirements
-Has CentOS 7 or Ubuntu 18 up and running
-A server that fulfills the minimal requirements to become a quobyte node
-Has a root or sudors account configured used to allow management via ansible
-
-[std_nodes] description
-You can have as many cluster nodes as you want
-Cluster nodes have metadata and data services installed
-If you only have 4 nodes in the cluster you might not have any entries here but only in bootstrap and reg_nodes
-
-[std_nodes requirements
-Has CentOS 7 or Ubuntu 18 up and running
-A server that fulfills the minimal requirements to become a quobyte node
-Has a root or sudors account configured used to allow management via ansible
 
 Preparation:
 
@@ -44,16 +26,14 @@ Preparation:
    Please use 'wipefs -av' to clean repurposed devices
 
 2) Edit the inventory file
- a) In section [bootstrap] put one Cluster Node by name
- b) In section [reg_nodes] put additional registry nodes here 2 entries here will result in a total of 3 registry servers (including bootstrap) (one per line)
- c) In section [std_nodes] put all additional nodes (if any) that should be added to the cluster (one per line)
- d) In section [clients] put all Client Nodes by name (one per line) (Cluster nodes already have the client installed)
+ a) In section [cluster] put the cluster nodes by name or ip (one per line)
+ b) In section [clients] put all Client Nodes by name (one per line) (Cluster nodes already have the client installed)
 
 3) Edit vars/quobyte.yaml
    Set the variables to a meaningful value for your environment
  a) repository: The Quobyte repo id that you have received after signing up on www.quobyte.com
- b) registry: The DNS A record for service discovery (example: registry.quobyte.local)
- c) mddisksize: The size of the flash device used for metadata on each node, example 1.2T (output size from lsblk) (only required when using [diskformat])
+ b) registry: The DNS CNAME or A record for service discovery (example: registry.quobyte.local) that resolves to the first 5 nodes of the cluster
+ c) mddisksize: The size of the flash device used for metadata on each node, example 1.2T (output size from lsblk)
  d) mountpoint: Mountpoint name for the Quobyte client (example: /quobyte)
  e) network: Specify the preffered network for traffic, usually this is the physical or logical interface with the most bandwidth
  f) s3_endpoint: dns name for s3 usage
