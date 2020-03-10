@@ -167,9 +167,11 @@
     - name: Set quobyte-client tuned profile
       shell:
         cmd: /usr/sbin/tuned-adm profile quobyte-client-performance
+      tags: tune
 
     - name: Restart quobyte-client
       service:
         name: quobyte-client
         state: restarted
         enabled: yes
+      tags: tune
