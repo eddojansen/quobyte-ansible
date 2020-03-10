@@ -147,6 +147,17 @@
         enabled: yes
       tags: tune
 
+    - name: Configure quobyte client configuration
+      blockinfile:
+        path: /etc/quobyte/client-service.cfg
+        block: |
+          options=default_permissions
+          disable-xattrs
+          features=fast_read
+          sequential_window_max_prefetch_horizon=20
+          multiclient_nr_clients=4
+      tags: tune
+
     - name: Copy updated Quobyte tuned config
       copy:
          src: templates/tuned.conf
