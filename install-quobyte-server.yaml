@@ -43,6 +43,7 @@
         - numad
         - netdata
         - irqbalance
+        - xfsprogs
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
       tags: packages
 
@@ -59,9 +60,10 @@
         - numactl
         - numad
         - netdata
-        - irqbalance  
+        - irqbalance
         - tuned
         - postfix
+        - xfsprogs
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
       tags: packages
 
@@ -170,7 +172,7 @@
     - name: Restart irqbalance
       service:
         name: irqbalance
-        state: restarted 
+        state: restarted
         enabled: yes
       tags: tune
 
