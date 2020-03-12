@@ -78,13 +78,31 @@
       register: command_result
       failed_when: "'ERROR' in command_result.stderr"
       ignore_errors: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: prep
 
-    - name: Ensure SELinux is set to disabled mode
-      lineinfile:
-        path: /etc/selinux/config
-        regexp: '^SELINUX='
-        line: SELINUX=disabled
+    - name: Disable SELinux permanently
+      selinux:
+        state: disabled
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: prep
+
+    - name: Ensure Apparmor is stopped
+      service:
+        name: apparmor
+        state: stopped
+        enabled: no
       ignore_errors: yes
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: prep
+
+    - name: Remove apparmor
+      package:
+        name: apparmor
+        state: absent
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      ignore_errors: yes
+      tags: prep
 
     - name: Remove swaps from fstab
       lineinfile:
