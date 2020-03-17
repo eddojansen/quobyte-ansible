@@ -36,6 +36,7 @@
         - numad
         - netdata
         - irqbalance
+        - tuned
       when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
       tags: packages
 
