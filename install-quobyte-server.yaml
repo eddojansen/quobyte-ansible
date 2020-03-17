@@ -512,10 +512,10 @@
         cmd: /usr/bin/qmgmt volume config import S3-objects /tmp/S3-objects.cfg
       tags: system
 
-    - name: Create default rf1 volume
-      shell:
-        cmd: /usr/bin/qmgmt volume create vol0-rf1 root root Single-replica
-      tags: volume
+#    - name: Create default rf1 volume
+#      shell:
+#        cmd: /usr/bin/qmgmt volume create vol0-rf1 root root Single-replica
+#      tags: volume
 
     - name: Create default rf3 volume
       shell:
