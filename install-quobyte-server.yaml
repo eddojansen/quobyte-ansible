@@ -120,7 +120,6 @@
         dest: /etc/fstab
         regexp: '^/[\S]+\s+swap\s+swap'
         state: absent
-      notify: disable swap
       tags: prep
 
     - name: Disable swap
