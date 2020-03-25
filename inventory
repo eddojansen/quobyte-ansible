@@ -8,7 +8,7 @@ ubuntu3
 ubuntu4
 
 [clients]
-qnode1
-qnode2
-qnode3
-qnode4
+centos1
+centos2
+centos3
+centos4

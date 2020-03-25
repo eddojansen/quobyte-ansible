@@ -83,6 +83,13 @@
       ignore_errors: yes
       tags: packages
 
+    - name: Stop and Disable Firewalld
+      service:
+        name: firewalld
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
     - name: Disable SE Linux
       shell:
         cmd: /usr/sbin/setenforce 0
