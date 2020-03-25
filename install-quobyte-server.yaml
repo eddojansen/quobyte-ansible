@@ -67,6 +67,20 @@
       when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
       tags: packages
 
+    - name: Ensure netdata is configured to listen on all IP's
+      lineinfile:
+        path: /etc/netdata/netdata.conf
+        regexp: 'bind to = localhost'
+        line:         bind to = {{ ansible_default_ipv4.address }}
+      tags: packages
+
+    - name: Restart netdata
+      service:
+        name: netdata
+        state: restarted
+        enabled: yes
+      tags: packages
+
     - name: Ensure Chrony is running
       service:
         name: chronyd
