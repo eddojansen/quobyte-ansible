@@ -1,0 +1,573 @@
+---
+- hosts: cluster
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  tasks:
+
+    - name: Download Quobyte Software for id {{ repo_id }}
+      get_url:
+        url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
+        dest: ~/install_quobyte
+        mode: '0755'
+      tags: packages
+
+    - name: Prevent STUPID Postfix popup
+      replace:
+        path: ~/install_quobyte
+        regexp: 'sudo dpkg-reconfigure --unseen-only postfix'
+        replace: ''
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: packages
+
+    - name: Install Epel Centos
+      yum:
+        name: epel-release
+        state: present
+        update_cache: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: packages
+
+    - name: Install packages Centos
+      yum:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+        - java-11-openjdk
+        - chrony
+        - atop
+        - htop
+        - numactl
+        - numad
+        - netdata
+        - irqbalance
+        - xfsprogs
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: packages
+
+    - name: Install packages Ubuntu
+      apt:
+        name: "{{ packages }}"
+        state: present
+      vars:
+        packages:
+        - openjdk-11-jre-headless
+        - chrony
+        - atop
+        - htop
+        - numactl
+        - numad
+        - netdata
+        - irqbalance
+        - tuned
+        - postfix
+        - xfsprogs
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: packages
+
+    - name: Ensure netdata is configured to listen on all IP's
+      lineinfile:
+        path: /etc/netdata/netdata.conf
+        regexp: 'bind to = localhost'
+        line:         bind to = {{ ansible_default_ipv4.address }}
+      tags: packages
+
+    - name: Restart netdata
+      service:
+        name: netdata
+        state: restarted
+        enabled: yes
+      tags: packages
+
+    - name: Ensure Chrony is running
+      service:
+        name: chronyd
+        state: started
+        enabled: yes
+      ignore_errors: yes
+      tags: packages
+
+    - name: Ensure Numad is running
+      service:
+        name: numad
+        state: started
+        enabled: yes
+      ignore_errors: yes
+      tags: packages
+
+    - name: Stop and Disable Firewalld
+      service:
+        name: firewalld
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Disable SE Linux
+      shell:
+        cmd: /usr/sbin/setenforce 0
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
+      ignore_errors: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: prep
+
+    - name: Disable SELinux permanently
+      selinux:
+        state: disabled
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: prep
+
+    - name: Ensure Apparmor is stopped
+      service:
+        name: apparmor
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: prep
+
+    - name: Remove apparmor
+      package:
+        name: apparmor
+        state: absent
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      ignore_errors: yes
+      tags: prep
+
+    - name: Remove swaps from fstab
+      lineinfile:
+        dest: /etc/fstab
+        regexp: '^/[\S]+\s+swap\s+swap'
+        state: absent
+      tags: prep
+
+    - name: Disable swap
+      shell:
+        cmd: swapoff -a
+      tags: prep
+
+    - name: Copy network_tune config
+      copy:
+         src: templates/network_tune
+         dest: /etc/init.d/
+         mode: '0770'
+      tags: tune
+
+    - name: Copy network_tune service
+      copy:
+         src: templates/network_tune.service
+         dest: /etc/systemd/system/
+      tags: tune
+
+    - name: Reload service daemon
+      shell:
+        cmd: systemctl daemon-reload
+      tags: tune
+
+    - name: Start and enable network_tune service
+      service:
+        name: network_tune
+        state: started
+        enabled: yes
+      tags: tune
+
+    - name: Ensure irqbalance is set to oneshot - Centos
+      lineinfile:
+        path: /etc/sysconfig/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: tune
+
+    - name: Ensure irqbalance is set to oneshot - Ubuntu
+      lineinfile:
+        path: /etc/default/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: tune
+
+    - name: Restart irqbalance
+      service:
+        name: irqbalance
+        state: restarted
+        enabled: yes
+      tags: tune
+
+    - name: Create a list of all devices
+      shell:
+        cmd: lsblk -dn -o NAME,TYPE |grep disk |awk '{print $1}'
+      register: list_all
+      tags: devices
+
+    - set_fact: flist_all="{{ list_all.stdout_lines }}"
+      tags: devices
+
+    - name: Create a list of non empty devices
+      shell:
+        cmd: blkid |awk '{print $1}'|sed 's/://'|sed 's/[0-9]\+$//'|uniq
+      register: list_non_empty
+      tags: devices
+
+    - set_fact: flist_non_empty="{{ list_non_empty.stdout }}"
+      tags: devices
+
+    - set_fact:
+        flist_empty: "{{ list_all.stdout_lines | difference (list_non_empty.stdout) }}"
+      tags: devices
+
+    - name: Create filesystem on empty devices
+      shell: mkfs.xfs -q -f -L quobyte-dev -isize=1024 /dev/{{ item }}
+      with_items:
+        - "{{ flist_empty }}"
+      register: _create_filesystems
+      async: 1200
+      poll: 0
+      ignore_errors: yes
+      tags: devices
+
+    - name: Wait for creation to finish
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: _jobs1
+      until: _jobs1.finished
+      delay: 5
+      retries: 1000
+      with_items: "{{ _create_filesystems.results }}"
+      ignore_errors: yes
+      tags: devices
+
+    - name: Create quobyte label list
+      shell: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
+      register: _quobyte_labeled
+      tags: devices
+
+    - set_fact: f_quobyte_labeled="{{ _quobyte_labeled.stdout_lines }}"
+      tags: devices
+    - name: Check number of devices
+      shell:
+        cmd: lsblk -o name,label |grep quobyte-dev |awk '{print $1}'
+      register: _number_devices
+      tags: devices
+
+- hosts: cluster[0]
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  gather_facts: no
+  tasks:
+
+    - name: Install Quobyte bootstrap
+      shell:
+        cmd: ~/install_quobyte bootstrap --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+      tags: bootstrap
+
+- hosts: cluster[1:4],!cluster[0]
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  gather_facts: no
+  tasks:
+
+    - name: Add additional Quobyte registry nodes
+      shell:
+        cmd: ~/install_quobyte add --repo-id {{ repo_id }} --services registry,data,metadata,api,webconsole --registry-endpoints {{ registry }}
+      tags: add_regnodes
+
+- hosts: cluster,!cluster[0:4]
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  gather_facts: no
+  tasks:
+
+    - name: Add additional Quobyte cluster nodes
+      shell:
+        cmd: ~/install_quobyte add --repo-id {{ repo_id }} --services data,metadata,api,webconsole --registry-endpoints {{ registry }}
+      tags: add_stdnodes
+
+- hosts: cluster
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  gather_facts: yes
+  tasks:
+
+    - name: Copy Quobyte memory config
+      copy:
+         src: templates/quobyte-mem
+         dest: /etc/default/quobyte
+      tags: tune
+
+    - name: Install Quobyte client
+      shell:
+        cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
+      tags: client
+
+    - name: Configure quobyte client configuration
+      blockinfile:
+        path: /etc/quobyte/client-service.cfg
+        block: |
+          options=default_permissions
+          disable-xattrs
+          features=fast_read
+          sequential_window_max_prefetch_horizon=200
+          multiclient_nr_clients=4
+      tags: tune
+
+    - name: Copy updated Quobyte tuned config
+      copy:
+         src: templates/tuned.conf
+         dest: /usr/lib/tuned/quobyte-server-performance/
+      tags: tune
+
+    - name: Set Quobyte tuned server profile
+      shell:
+        cmd: tuned-adm profile quobyte-server-performance
+      tags: tune
+
+    - name: Select the Metadata disk based on mddisksize
+      shell:
+        cmd: lsblk -o name,label,size |grep quobyte-dev |grep {{ mddisksize }} |awk 'NR==1{print $1}'
+      register: list_m
+      tags: devices
+
+    - set_fact: flist_m="{{ list_m.stdout_lines }}"
+      tags: devices
+
+    - debug: var=list_m.stdout_lines
+
+    - name: Create metadata disk
+      shell: qmkdev -t M /var/lib/quobyte/mnt/inspector-{{ item }}
+      with_items:
+        - "{{ flist_m }}"
+      tags: devices
+
+    - set_fact:
+        flist_d: "{{ flist_empty | difference (flist_m) }}"
+      tags: devices
+
+    - debug: var=flist_d
+
+    - name: Create Quobyte Data devices
+      shell: qmkdev -t D /var/lib/quobyte/mnt/inspector-{{ item }}
+      with_items:
+        - "{{ flist_d }}"
+      register: _create_data_devices
+      async: 1200
+      poll: 0
+      tags: devices
+
+    - debug: var=flist_d
+
+    - name: Wait for creation to finish
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: _jobs3
+      until: _jobs3.finished
+      delay: 5
+      retries: 1000
+      with_items: "{{ _create_data_devices.results }}"
+      tags: devices
+
+- hosts: cluster
+  vars_files:
+  - vars/quobyte.yaml
+  become: yes
+  gather_facts: no
+  tasks:
+
+    - name: Start and enable Quobyte metadata service
+      service:
+        name: quobyte-metadata
+        state: started
+        enabled: yes
+      tags: services
+
+    - name: Copy quobyte-data configuration
+      copy:
+         src: templates/quobyte-data
+         dest: /usr/bin/quobyte-data
+      tags: tune
+
+    - name: Start and enable Quobyte data service
+      service:
+        name: quobyte-data
+        state: restarted
+        enabled: yes
+      tags: services
+
+    - name: Start and enable Quobyte api service
+      service:
+        name: quobyte-api
+        state: started
+        enabled: yes
+      tags: services
+
+    - name: Start and enable Quobyte webconsole  service
+      service:
+        name: quobyte-webconsole
+        state: started
+        enabled: yes
+      tags: services
+
+    - name: Start quobyte-client
+      service:
+        name: quobyte-client
+        state: restarted
+        enabled: yes
+      tags: services,client
+
+    - name: Wait until metadata service is ready
+      wait_for:
+        path: /var/log/quobyte/metadata.log
+        search_regex: "volume initialization complete"
+      tags: devices
+
+    - name: Wait until api service is ready
+      wait_for:
+        path: /var/log/quobyte/api.log
+        search_regex: "API service is now ready"
+      tags: services
+
+- hosts: cluster[0]
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  gather_facts: no
+  tasks:
+
+    - name: Copy system configuration
+      copy:
+         src: templates/system.config
+         dest: /tmp/
+      tags: system
+
+    - replace:
+        path: /tmp/system.config
+        regexp: '__NW__'
+        replace: '{{ network }}'
+      tags: system
+
+    - replace:
+        path: /tmp/system.config
+        regexp: '__S3__'
+        replace: '{{ s3_endpoint }}'
+      tags: system
+
+    - name: Import system configuration
+      shell:
+        cmd: /usr/bin/qmgmt systemconfig import /tmp/system.config
+      tags: system
+
+- hosts: cluster
+  become: yes
+  gather_facts: no
+  tasks:
+
+    - name: Start quobyte-s3
+      service:
+        name: quobyte-s3
+        state: restarted
+        enabled: yes
+      tags: services
+
+- hosts: cluster[0]
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  gather_facts: no
+  tasks:
+
+    - name: Copy default volume configuration
+      copy:
+         src: templates/
+         dest: /tmp/
+      tags: system
+
+    - name: Import rf1 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import Single-replica /tmp/Single-replica.cfg
+      tags: system
+
+    - name: Import rf3 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import Default-replicated /tmp/Default-replicated.cfg
+      tags: system
+
+    - name: Import ec2+1 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-2plus1 /tmp/EC-2plus1.cfg
+      tags: system
+
+    - name: Import ec2+1-small volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-2plus1-small /tmp/EC-2plus1-small.cfg
+      tags: system
+
+    - name: Import ec4+2 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-4plus2 /tmp/EC-4plus2.cfg
+      tags: system
+
+    - name: Import ec4+2-small volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-4plus2-small /tmp/EC-4plus2-small.cfg
+      tags: system
+
+    - name: Import ec8+2 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-8plus2 /tmp/EC-8plus2.cfg
+      tags: system
+
+    - name: Import ec8+2-small volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import EC-8plus2-small /tmp/EC-8plus2-small.cfg
+      tags: system
+
+    - name: Import s3 volume configuration
+      shell:
+        cmd: /usr/bin/qmgmt volume config import S3-objects /tmp/S3-objects.cfg
+      tags: system
+
+#    - name: Create default rf1 volume
+#      shell:
+#        cmd: /usr/bin/qmgmt volume create vol0-rf1 root root Single-replica
+#      tags: volume
+
+    - name: Create default rf3 volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-rf3 root root Default-replicated
+      tags: volume
+
+    - name: Create default ec2+1 volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec21 root root EC-2plus1
+      tags: volume
+
+    - name: Create default ec2+1-small volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec21-small root root EC-2plus1-small
+      tags: volume
+
+    - name: Create default ec4+2 volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec42 root root EC-4plus2
+      tags: volume
+
+    - name: Create default ec4+2-small volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec42-small root root EC-4plus2-small
+      tags: volume
+
+    - name: Create default ec8+2 volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec82 root root EC-8plus2
+      tags: volume
+
+    - name: Create default ec8+2-small volume
+      shell:
+        cmd: /usr/bin/qmgmt volume create vol0-ec82-small root root EC-8plus2-small
+      tags: volume

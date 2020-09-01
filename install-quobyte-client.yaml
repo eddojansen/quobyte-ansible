@@ -1,0 +1,196 @@
+- hosts: clients
+  vars_files:
+    - vars/quobyte.yaml
+  become: yes
+  tasks:
+
+    - name: Download Quobyte Software for id {{ repo_id }}
+      get_url:
+        url: https://packages.quobyte.com/repo/3/{{ repo_id }}/install_quobyte
+        dest: ~/install_quobyte
+        mode: '0755'
+
+    - name: Install Quobyte client
+      shell:
+        cmd: ~/install_quobyte add-client --repo-id {{ repo_id }} --registry-endpoints {{ registry }} --mount-point {{ mountpoint }}
+
+    - name: Install Epel Centos
+      yum:
+        name: epel-release
+        state: present
+        update_cache: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: packages
+
+    - name: Install packages Centos
+      yum:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+      vars:
+        packages:
+        - chrony
+        - atop
+        - htop
+        - numactl
+        - numad
+        - netdata
+        - irqbalance
+        - tuned
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: packages
+
+    - name: Install packages Ubuntu
+      apt:
+        name: "{{ packages }}"
+        state: present
+      vars:
+        packages:
+        - chrony
+        - atop
+        - htop
+        - numactl
+        - numad
+        - netdata
+        - irqbalance
+        - tuned
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: packages
+
+    - name: Ensure Chrony is running
+      service:
+        name: chronyd
+        state: started
+        enabled: yes
+      ignore_errors: yes
+      tags: packages
+
+    - name: Ensure Numad is running
+      service:
+        name: numad
+        state: started
+        enabled: yes
+      ignore_errors: yes
+      tags: packages
+
+    - name: Disable SE Linux
+      shell:
+        cmd: /usr/sbin/setenforce 0
+      register: command_result
+      failed_when: "'ERROR' in command_result.stderr"
+      ignore_errors: yes
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: prep
+
+    - name: Disable SELinux permanently
+      selinux:
+        state: disabled
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: prep
+
+    - name: Ensure Apparmor is stopped
+      service:
+        name: apparmor
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: prep
+
+    - name: Remove apparmor
+      package:
+        name: apparmor
+        state: absent
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      ignore_errors: yes
+      tags: prep
+
+    - name: Remove swaps from fstab
+      lineinfile:
+        dest: /etc/fstab
+        regexp: '^/[\S]+\s+swap\s+swap'
+        state: absent
+      notify: disable swap
+      tags: tune
+
+    - name: Disable swap
+      shell:
+        cmd: swapoff -a
+      tags: tune
+
+    - name: Copy network_tune config
+      copy:
+         src: templates/network_tune
+         dest: /etc/init.d/
+         mode: '0770'
+      tags: tune
+
+    - name: Copy network_tune service
+      copy:
+         src: templates/network_tune.service
+         dest: /etc/systemd/system/
+      tags: tune
+
+    - name: Reload service daemon
+      shell:
+        cmd: systemctl daemon-reload
+      tags: tune
+
+    - name: Start and enable network_tune service
+      service:
+        name: network_tune
+        state: started
+        enabled: yes
+      tags: tune
+
+    - name: Ensure irqbalance is set to oneshot - Centos
+      lineinfile:
+        path: /etc/sysconfig/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+      tags: tune
+
+    - name: Ensure irqbalance is set to oneshot - Ubuntu
+      lineinfile:
+        path: /etc/default/irqbalance
+        regexp: '^#IRQBALANCE_ONESHOT='
+        line: IRQBALANCE_ONESHOT=1
+      when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+      tags: tune
+
+    - name: Restart irqbalance
+      service:
+        name: irqbalance
+        state: restarted
+        enabled: yes
+      tags: tune
+
+    - name: Configure quobyte client configuration
+      blockinfile:
+        path: /etc/quobyte/client-service.cfg
+        block: |
+          options=default_permissions
+          disable-xattrs
+          features=fast_read
+          sequential_window_max_prefetch_horizon=20
+          multiclient_nr_clients=4
+      tags: tune
+
+    - name: Copy updated Quobyte tuned config
+      copy:
+         src: templates/tuned.conf
+         dest: /usr/lib/tuned/quobyte-client-performance/
+      tags: tune
+
+    - name: Set quobyte-client tuned profile
+      shell:
+        cmd: /usr/sbin/tuned-adm profile quobyte-client-performance
+      tags: tune
+
+    - name: Restart quobyte-client
+      service:
+        name: quobyte-client
+        state: restarted
+        enabled: yes
+      tags: tune
