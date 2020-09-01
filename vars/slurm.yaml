@@ -1,0 +1,11 @@
+CONTROLMACHINE: ubuntu18-slurm-01
+CONTROLADDR: 172.16.78.111
+CLUSTERNAME: cluster1
+NODENAME: ubuntu18-slurm-0[1-4]
+NODEADDR: 172.16.78.11[1-4]
+NODES: ubuntu18-slurm-0[1-4]
+CPUS: 2 # slurmd -C
+REALMEMORY: 16040 # slurmd -C
+SOCKETS: 2 # slurmd -C
+CORESPERSOCKET: 1 # slurmd -C
+THREADSPERCORE: 1 # slurmd -C

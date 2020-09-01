@@ -2,13 +2,8 @@
 ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 
 [cluster]
-ubuntu1
-ubuntu2
-ubuntu3
-ubuntu4
+ubuntu18-slurm-01
+ubuntu18-slurm-02
+ubuntu18-slurm-03
+ubuntu18-slurm-04
 
-[clients]
-centos1
-centos2
-centos3
-centos4
